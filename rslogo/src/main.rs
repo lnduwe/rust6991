@@ -1,23 +1,14 @@
-use std::{collections::HashMap, fs::File, io::Read, num::ParseFloatError, result};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Lines, Read},
+    path::PathBuf,
+};
 
 use clap::{parser, Parser};
 use unsvg::Image;
 
 const QUOTES: char = '\"';
-
-enum Commands {
-    PENUP,
-    PENDOWN,
-    FORWARD(f32),
-    BACK(f32),
-    RIGHT(f32),
-    LEFT(f32),
-    SETPENCOLOR(f32),
-    TURN(f32),
-    SETHEADING(f32),
-    SETX(f32),
-    SETY(f32),
-}
 
 /// A simple program to parse four arguments using clap.
 #[derive(Parser)]
@@ -37,8 +28,7 @@ struct Args {
 struct CommandError(String);
 
 #[derive(Default)]
-struct LogoParser {
-    file_path: String,
+struct LogoParser<'a> {
     width: u32,
     height: u32,
     pen_up: bool,
@@ -47,11 +37,13 @@ struct LogoParser {
     direction: f32,
     pen_color: f32,
     variables: HashMap<String, f32>,
+    line_number: u32,
+    // contents: &'a str,
+    lines: Option<std::str::Lines<'a>>,
 }
-impl LogoParser {
-    fn new(file_path: String) -> Self {
+impl<'a> LogoParser<'a> {
+    fn new(c: &'a str) -> Self {
         LogoParser {
-            file_path,
             width: 100,
             height: 100,
             pen_up: false,
@@ -60,19 +52,22 @@ impl LogoParser {
             direction: 0.0,
             pen_color: 0.0,
             variables: HashMap::new(),
+            line_number: 1,
+            lines: Some(c.lines()),
+            // contents: c,
         }
     }
 
-    fn ParseAction(&mut self) {
-        let mut file = File::open(&self.file_path).expect("Unable to open file");
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .expect("Unable to read file");
-        let lines = contents.lines();
-        let mut line_number = 1;
-        for line in lines {
+
+    fn parse_action(&mut self) {
+
+        while let Some(line) = self.lines.as_mut().unwrap().next() {
+            if line.len() == 0 {
+                self.line_number += 1;
+                continue;
+            }
+
             let parts: Vec<&str> = line.split_whitespace().collect();
-            // println!("{:?}", &parts);
 
             match parts[0] {
                 "//" => {}
@@ -80,14 +75,14 @@ impl LogoParser {
                     self.pen_up = true;
                     match self.process_actions(&parts) {
                         Ok(_) => {}
-                        Err(e) => self.print_log(line_number, &e.0),
+                        Err(e) => self.print_log(&e.0),
                     }
                 }
                 "PENDOWN" => {
                     self.pen_up = false;
                     match self.process_actions(&parts) {
                         Ok(_) => {}
-                        Err(e) => self.print_log(line_number, &e.0),
+                        Err(e) => self.print_log(&e.0),
                     }
                 }
                 "FORWARD" => {
@@ -96,7 +91,7 @@ impl LogoParser {
                         Ok(d) => {
                             println!("{}", d);
                         }
-                        Err(e) => self.print_log(line_number, &e.0),
+                        Err(e) => self.print_log(&e.0),
                     }
                 }
                 "BACK" => {
@@ -105,7 +100,7 @@ impl LogoParser {
                         Ok(d) => {
                             println!("{}", d);
                         }
-                        Err(e) => self.print_log(line_number, &e.0),
+                        Err(e) => self.print_log(&e.0),
                     }
                 }
                 "RIGHT" => {
@@ -115,7 +110,7 @@ impl LogoParser {
                         Ok(d) => {
                             println!("{}", d);
                         }
-                        Err(e) => self.print_log(line_number, &e.0),
+                        Err(e) => self.print_log(&e.0),
                     }
                 }
                 "LEFT" => {
@@ -125,39 +120,39 @@ impl LogoParser {
                         Ok(d) => {
                             println!("{}", d);
                         }
-                        Err(e) => self.print_log(line_number, &e.0),
+                        Err(e) => self.print_log(&e.0),
                     }
                 }
 
                 "SETPENCOLOR" => match self.process_actions(&parts) {
                     Ok(d) => self.pen_color = d,
-                    Err(e) => self.print_log(line_number, &e.0),
+                    Err(e) => self.print_log(&e.0),
                 },
                 "SETHEADING" => match self.process_actions(&parts) {
                     Ok(d) => self.direction = d,
-                    Err(e) => self.print_log(line_number, &e.0),
+                    Err(e) => self.print_log(&e.0),
                 },
                 "SETX" => match self.process_actions(&parts) {
                     Ok(d) => self.xcor = d,
-                    Err(e) => self.print_log(line_number, &e.0),
+                    Err(e) => self.print_log(&e.0),
                 },
                 "SETY" => match self.process_actions(&parts) {
                     Ok(d) => self.ycor = d,
-                    Err(e) => self.print_log(line_number, &e.0),
+                    Err(e) => self.print_log(&e.0),
                 },
                 "TURN" => match self.process_actions(&parts) {
                     Ok(d) => self.direction += d,
-                    Err(e) => self.print_log(line_number, &e.0),
+                    Err(e) => self.print_log(&e.0),
                 },
                 "MAKE" => match self.process_actions(&parts) {
                     Ok(d) => self.direction += d,
-                    Err(e) => self.print_log(line_number, &e.0),
+                    Err(e) => self.print_log(&e.0),
                 },
                 _ => {
-                    println!("Wrong type of command on line {}", line_number);
+                    println!("Wrong type of command on line {}", self.line_number);
                 }
             }
-            line_number += 1;
+            self.line_number += 1;
         }
     }
 
@@ -237,8 +232,8 @@ impl LogoParser {
         }
     }
 
-    fn print_log(&self, line_number: u32, error: &str) {
-        println!("Error: {}, line: {}", error, line_number)
+    fn print_log(&self, error: &str) {
+        println!("Error: {}, line: {}", error, self.line_number)
     }
 }
 
@@ -252,9 +247,16 @@ fn main() -> Result<(), ()> {
     let width = args.width;
     let image = Image::new(width, height);
 
-    let mut logo_parser = LogoParser::new(file_path.to_str().unwrap().to_string());
+    let mut file = File::open(file_path).expect("Unable to open file");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)
+        .expect("Unable to read file");
 
-    logo_parser.ParseAction();
+    // let lines = contents.lines();
+
+    let mut logo_parser = LogoParser::new(&contents);
+
+    logo_parser.parse_action();
 
     match image_path.extension().map(|s| s.to_str()).flatten() {
         Some("svg") => {
