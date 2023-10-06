@@ -58,9 +58,7 @@ impl<'a> LogoParser<'a> {
         }
     }
 
-
     fn parse_action(&mut self) {
-
         while let Some(line) = self.lines.as_mut().unwrap().next() {
             if line.len() == 0 {
                 self.line_number += 1;
@@ -145,9 +143,14 @@ impl<'a> LogoParser<'a> {
                     Err(e) => self.print_log(&e.0),
                 },
                 "MAKE" => match self.process_actions(&parts) {
-                    Ok(d) => self.direction += d,
+                    Ok(d) => {}
                     Err(e) => self.print_log(&e.0),
                 },
+                "ADDASSIGN" => match self.process_actions(&parts) {
+                    Ok(d) => {}
+                    Err(e) => self.print_log(&e.0),
+                },
+
                 _ => {
                     println!("Wrong type of command on line {}", self.line_number);
                 }
@@ -224,6 +227,55 @@ impl<'a> LogoParser<'a> {
                             return Err(CommandError(e.to_string()));
                         }
                     }
+                }
+            }
+            "ADDASSIGN" => {
+                if commands.len() != 3 {
+                    return Err(CommandError("Wrong number of arguments".to_string()));
+                } else if !commands[1].starts_with(QUOTES) {
+                    return Err(CommandError("Wrong type of arguments".to_string()));
+                } else {
+                    let name = commands[1][1..commands[1].len()].to_string();
+                    let odd_value = self.variables.get(&name);
+                    if odd_value.is_none() {
+                        return Err(CommandError("Variable not found".to_string()));
+                    }
+
+                    let name_2 = commands[2][1..commands[2].len()].to_string();
+                    if commands[2].starts_with(":") {
+                        let v = self.variables.get(&name_2);
+                        match v {
+                            Some(result) => {
+                                self.variables.insert(name, odd_value.unwrap() + result);
+                                Ok(0.0)
+                            }
+                            None => Err(CommandError("Variable not found".to_string())),
+                        }
+                    } else if commands[2].starts_with("\"") {
+                        match name_2.parse::<f32>() {
+                            Ok(result) => {
+                                self.variables.insert(name, odd_value.unwrap() + result);
+                                Ok(0.0)
+                            }
+                            Err(e) => {
+                                return Err(CommandError(e.to_string()));
+                            }
+                        }
+                    } else {
+                        Err(CommandError("Wrong type of arguments".to_string()))
+                    }
+
+                    // match value {
+                    //     Ok(result) => {
+                    //         let mut odd_value = self.variables.get(&name).unwrap().to_owned();
+                    //         odd_value += result;
+                    //         self.variables.insert(name, odd_value);
+                    //         Ok(0.0)
+                    //     }
+                    //     Err(e) => {
+                    //         return Err(CommandError(e.to_string()));
+                    //     }
+                    // }
                 }
             }
             _ => {
