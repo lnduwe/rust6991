@@ -57,6 +57,35 @@ impl<'a> LogoParser<'a> {
             // contents: c,
         }
     }
+    fn get_value(&self, name: &str) -> Option<f32> {
+        if name.starts_with(QUOTES) {
+            let arg = name[1..name.len()].to_string();
+            let result = arg.parse::<f32>();
+            match result {
+                Ok(result) => {
+                    return Some(result);
+                }
+                Err(e) => {
+                    return None;
+                }
+            }
+        } else if name.starts_with(":") {
+            let arg = name[1..name.len()].to_string();
+
+            match self.variables.get(&arg) {
+                Some(result) => {
+                    return Some(*result);
+                }
+                None => {
+                    return None;
+                }
+            }
+        } else if name.eq("XCOR") {
+            return Some(self.xcor);
+        } else {
+            return None;
+        }
+    }
 
     fn parse_action(&mut self) {
         while let Some(line) = self.lines.as_mut().unwrap().next() {
@@ -68,7 +97,7 @@ impl<'a> LogoParser<'a> {
             let parts: Vec<&str> = line.split_whitespace().collect();
 
             match parts[0] {
-                "//" => {}
+                "//" | "]" => {}
                 "PENUP" => {
                     self.pen_up = true;
                     match self.process_actions(&parts) {
@@ -123,11 +152,17 @@ impl<'a> LogoParser<'a> {
                 }
 
                 "SETPENCOLOR" => match self.process_actions(&parts) {
-                    Ok(d) => self.pen_color = d,
+                    Ok(d) => {
+                        self.pen_color = d;
+                        println!("COLOR {}", self.pen_color);
+                    }
                     Err(e) => self.print_log(&e.0),
                 },
                 "SETHEADING" => match self.process_actions(&parts) {
-                    Ok(d) => self.direction = d,
+                    Ok(d) => {
+                        self.direction = d;
+                        println!("DIR {}", self.direction);
+                    }
                     Err(e) => self.print_log(&e.0),
                 },
                 "SETX" => match self.process_actions(&parts) {
@@ -139,7 +174,12 @@ impl<'a> LogoParser<'a> {
                     Err(e) => self.print_log(&e.0),
                 },
                 "TURN" => match self.process_actions(&parts) {
-                    Ok(d) => self.direction += d,
+                    Ok(d) => {
+                        self.direction += d;
+                        self.direction = self.direction.abs() % 360.0;
+                        println!("DIR {}", self.direction);
+                    }
+
                     Err(e) => self.print_log(&e.0),
                 },
                 "MAKE" => match self.process_actions(&parts) {
@@ -147,6 +187,10 @@ impl<'a> LogoParser<'a> {
                     Err(e) => self.print_log(&e.0),
                 },
                 "ADDASSIGN" => match self.process_actions(&parts) {
+                    Ok(d) => {}
+                    Err(e) => self.print_log(&e.0),
+                },
+                "IF" => match self.process_actions(&parts) {
                     Ok(d) => {}
                     Err(e) => self.print_log(&e.0),
                 },
@@ -264,20 +308,64 @@ impl<'a> LogoParser<'a> {
                     } else {
                         Err(CommandError("Wrong type of arguments".to_string()))
                     }
-
-                    // match value {
-                    //     Ok(result) => {
-                    //         let mut odd_value = self.variables.get(&name).unwrap().to_owned();
-                    //         odd_value += result;
-                    //         self.variables.insert(name, odd_value);
-                    //         Ok(0.0)
-                    //     }
-                    //     Err(e) => {
-                    //         return Err(CommandError(e.to_string()));
-                    //     }
-                    // }
                 }
             }
+            "IF" => {
+                if commands.len() < 5 {
+                    return Err(CommandError("Wrong number of arguments".to_string()));
+                }
+                let mut flag = true;
+                let arg = commands[1].to_string();
+                if arg.eq("EQ") {
+                    flag = true;
+                } else if arg.eq("NEQ") {
+                    flag = false;
+                } else {
+                    return Err(CommandError("Wrong type of arguments".to_string()));
+                }
+
+                if commands.len() == 5 {
+                    let first = self.get_value(commands[2]);
+                    let second = self.get_value(commands[3]);
+                    if first.is_none()
+                        || second.is_none()
+                        || (first.unwrap() == second.unwrap() && !flag)
+                        || (first.unwrap() != second.unwrap() && flag)
+                    {
+                        flag = false;
+                    } else {
+                        flag = true;
+                    }
+
+                    if commands[4] != "[" {
+                        return Err(CommandError("Wrong type of arguments".to_string()));
+                    }
+                    let mut count = 0;
+
+                    for _i in self.line_number.. {
+                        let line = self.lines.as_mut().unwrap().next();
+                        if line.is_none() {
+                            return Err(CommandError("Wrong type of arguments".to_string()));
+                        } else {
+                            if line.unwrap().eq("]") {
+                                break;
+                            } else {
+                                count += 1;
+                            }
+                        }
+                    }
+
+                    if !flag {
+                        self.line_number += count;
+                        return Ok(0.0);
+                    } else {
+                        return Ok(0.0);
+                    }
+                } else {
+                    Ok(0.0)
+                }
+            }
+
             _ => {
                 return Err(CommandError("Wrong type of command".to_string()));
             }
@@ -303,8 +391,6 @@ fn main() -> Result<(), ()> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Unable to read file");
-
-    // let lines = contents.lines();
 
     let mut logo_parser = LogoParser::new(&contents);
 
