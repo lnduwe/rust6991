@@ -1,36 +1,9 @@
-use std::{fs::File, io::Read, num::ParseFloatError, result};
+use std::{collections::HashMap, fs::File, io::Read, num::ParseFloatError, result};
 
 use clap::{parser, Parser};
 use unsvg::Image;
 
 const QUOTES: char = '\"';
-// #[derive(Debug, PartialEq)]
-// pub struct Color {
-//   pub red: u8,
-//   pub green: u8,
-//   pub blue: u8,
-// }
-
-// fn from_hex(input: &str) -> Result<u8, std::num::ParseIntError> {
-//   u8::from_str_radix(input, 16)
-// }
-
-// fn is_hex_digit(c: char) -> bool {
-//   c.is_digit(16)
-// }
-
-// fn hex_primary(input: &str) -> IResult<&str, u8> {
-//   map_res(
-//     take_while_m_n(2, 2, is_hex_digit),
-//     from_hex
-//   ).parse(input)
-// }
-
-// fn hex_color(input: &str) -> IResult<&str, Color> {
-//   let (input, _) = tag("#")(input)?;
-//   let (input, (red, green, blue)) = (hex_primary, hex_primary, hex_primary).parse(input)?;
-//   Ok((input, Color { red, green, blue }))
-// }
 
 enum Commands {
     PENUP,
@@ -62,14 +35,133 @@ struct Args {
     width: u32,
 }
 struct CommandError(String);
-struct Command {
-    // name: String,
-    // arg: Vec<String>,
-    // xcor: f32,
-    // ycor: f32,
+
+#[derive(Default)]
+struct LogoParser {
+    file_path: String,
+    width: u32,
+    height: u32,
+    pen_up: bool,
+    xcor: f32,
+    ycor: f32,
+    direction: f32,
+    pen_color: f32,
+    variables: HashMap<String, f32>,
 }
-impl Command {
-    fn process(&self, commands: &Vec<&str>) -> Result<f32, CommandError> {
+impl LogoParser {
+    fn new(file_path: String) -> Self {
+        LogoParser {
+            file_path,
+            width: 100,
+            height: 100,
+            pen_up: false,
+            xcor: 0.0,
+            ycor: 0.0,
+            direction: 0.0,
+            pen_color: 0.0,
+            variables: HashMap::new(),
+        }
+    }
+
+    fn ParseAction(&mut self) {
+        let mut file = File::open(&self.file_path).expect("Unable to open file");
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)
+            .expect("Unable to read file");
+        let lines = contents.lines();
+        let mut line_number = 1;
+        for line in lines {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            // println!("{:?}", &parts);
+
+            match parts[0] {
+                "//" => {}
+                "PENUP" => {
+                    self.pen_up = true;
+                    match self.process_actions(&parts) {
+                        Ok(_) => {}
+                        Err(e) => self.print_log(line_number, &e.0),
+                    }
+                }
+                "PENDOWN" => {
+                    self.pen_up = false;
+                    match self.process_actions(&parts) {
+                        Ok(_) => {}
+                        Err(e) => self.print_log(line_number, &e.0),
+                    }
+                }
+                "FORWARD" => {
+                    self.direction = 0.0;
+                    match self.process_actions(&parts) {
+                        Ok(d) => {
+                            println!("{}", d);
+                        }
+                        Err(e) => self.print_log(line_number, &e.0),
+                    }
+                }
+                "BACK" => {
+                    self.direction = 180.0;
+                    match self.process_actions(&parts) {
+                        Ok(d) => {
+                            println!("{}", d);
+                        }
+                        Err(e) => self.print_log(line_number, &e.0),
+                    }
+                }
+                "RIGHT" => {
+                    self.direction = 90.0;
+
+                    match self.process_actions(&parts) {
+                        Ok(d) => {
+                            println!("{}", d);
+                        }
+                        Err(e) => self.print_log(line_number, &e.0),
+                    }
+                }
+                "LEFT" => {
+                    self.direction = 270.0;
+
+                    match self.process_actions(&parts) {
+                        Ok(d) => {
+                            println!("{}", d);
+                        }
+                        Err(e) => self.print_log(line_number, &e.0),
+                    }
+                }
+
+                "SETPENCOLOR" => match self.process_actions(&parts) {
+                    Ok(d) => self.pen_color = d,
+                    Err(e) => self.print_log(line_number, &e.0),
+                },
+                "SETHEADING" => match self.process_actions(&parts) {
+                    Ok(d) => self.direction = d,
+                    Err(e) => self.print_log(line_number, &e.0),
+                },
+                "SETX" => match self.process_actions(&parts) {
+                    Ok(d) => self.xcor = d,
+                    Err(e) => self.print_log(line_number, &e.0),
+                },
+                "SETY" => match self.process_actions(&parts) {
+                    Ok(d) => self.ycor = d,
+                    Err(e) => self.print_log(line_number, &e.0),
+                },
+                "TURN" => match self.process_actions(&parts) {
+                    Ok(d) => self.direction += d,
+                    Err(e) => self.print_log(line_number, &e.0),
+                },
+                "MAKE" => match self.process_actions(&parts) {
+                    Ok(d) => self.direction += d,
+                    Err(e) => self.print_log(line_number, &e.0),
+                },
+                _ => {
+                    println!("Wrong type of command on line {}", line_number);
+                }
+            }
+            line_number += 1;
+        }
+    }
+
+    fn process_actions(&mut self, commands: &Vec<&str>) -> Result<f32, CommandError> {
         match commands[0] {
             "PENUP" | "PENDOWN" => {
                 if commands.len() > 1 {
@@ -83,7 +175,21 @@ impl Command {
                 if commands.len() != 2 {
                     return Err(CommandError("Wrong number of arguments".to_string()));
                 } else if !commands[1].starts_with(QUOTES) {
-                    return Err(CommandError("Wrong type of arguments".to_string()));
+                    if !commands[1].starts_with(":") {
+                        return Err(CommandError("Wrong type of arguments".to_string()));
+                    } else {
+                        let mut arg = commands[1].to_string();
+                        arg.remove(0);
+                        // print!("{:?}", arg  );
+                        match self.variables.get(&arg) {
+                            Some(result) => {
+                                return Ok(*result);
+                            }
+                            None => {
+                                return Err(CommandError("Variable not found".to_string()));
+                            }
+                        }
+                    }
                 } else {
                     let mut arg = commands[1].to_string();
                     arg.remove(0);
@@ -98,120 +204,41 @@ impl Command {
                     }
                 }
             }
+            "MAKE" => {
+                if commands.len() != 3 {
+                    return Err(CommandError("Wrong number of arguments".to_string()));
+                } else if !commands[1].starts_with(QUOTES)
+                    || !commands[2].starts_with(QUOTES)
+                    || commands[1].len() < 2
+                {
+                    return Err(CommandError("Wrong type of arguments".to_string()));
+                } else {
+                    let name = commands[1][1..commands[1].len()].to_string();
+                    // print!("{:?}", name);
+                    let mut v = commands[2].to_string();
+                    v.remove(0);
+
+                    let value = v.parse::<f32>();
+                    // print!("{:?}", value);
+                    match value {
+                        Ok(result) => {
+                            self.variables.insert(name, result);
+                            Ok(0.0)
+                        }
+                        Err(e) => {
+                            return Err(CommandError(e.to_string()));
+                        }
+                    }
+                }
+            }
             _ => {
                 return Err(CommandError("Wrong type of command".to_string()));
             }
         }
     }
-}
-#[derive(Default)]
-struct LogoParser {
-    file_path: String,
-    width: u32,
-    height: u32,
-    pen_up: bool,
-}
-impl LogoParser {
-    fn ParseLogo(&mut self) {
-        let mut xcor: f32 = 0.0;
-        let mut ycor: f32 = 0.0;
-        let mut direction: f32 = 0.0;
-        let mut pen_color: f32 = 0.0;
 
-        let mut commands: Vec<Command> = Vec::new();
-        let mut file = File::open(&self.file_path).expect("Unable to open file");
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .expect("Unable to read file");
-        let lines = contents.lines();
-        let mut line_number = 1;
-        let cmd = Command {};
-        for line in lines {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            // println!("{:?}", &parts);
-
-            match parts[0] {
-                "//" => {}
-                "PENUP" => {
-                    self.pen_up = true;
-                    match cmd.process(&parts) {
-                        Ok(_) => {}
-                        Err(e) => println!("Error: {}", e.0),
-                    }
-                }
-                "PENDOWN" => {
-                    self.pen_up = false;
-                    match cmd.process(&parts) {
-                        Ok(_) => {}
-                        Err(e) => println!("Error: {}", e.0),
-                    }
-                }
-                "FORWARD" => {
-                    direction = 0.0;
-                    match cmd.process(&parts) {
-                        Ok(d) => {
-                            println!("{}", d);
-                        }
-                        Err(e) => println!("Error: {}", e.0),
-                    }
-                }
-                "BACK" => {
-                    direction = 180.0;
-                    match cmd.process(&parts) {
-                        Ok(d) => {
-                            println!("{}", d);
-                        }
-                        Err(e) => println!("Error: {}", e.0),
-                    }
-                }
-                "RIGHT" => {
-                    direction = 90.0;
-
-                    match cmd.process(&parts) {
-                        Ok(d) => {
-                            println!("{}", d);
-                        }
-                        Err(e) => println!("Error: {}", e.0),
-                    }
-                }
-
-                "LEFT" => {
-                    direction = 270.0;
-
-                    match cmd.process(&parts) {
-                        Ok(d) => {
-                            println!("{}", d);
-                        }
-                        Err(e) => println!("Error: {}", e.0),
-                    }
-                }
-
-                "SETPENCOLOR" => match cmd.process(&parts) {
-                    Ok(d) => pen_color = d,
-                    Err(e) => println!("Error: {}", e.0),
-                },
-                "SETHEADING" => match cmd.process(&parts) {
-                    Ok(d) => direction = d,
-                    Err(e) => println!("Error: {}", e.0),
-                },
-                "SETX" => match cmd.process(&parts) {
-                    Ok(d) => xcor = d,
-                    Err(e) => println!("Error: {}", e.0),
-                },
-                "SETY" => match cmd.process(&parts) {
-                    Ok(d) => ycor = d,
-                    Err(e) => println!("Error: {}", e.0),
-                },
-                "TURN" => match cmd.process(&parts) {
-                    Ok(d) => direction += d,
-                    Err(e) => println!("Error: {}", e.0),
-                },
-                _ => {
-                    println!("Wrong type of command on line {}", line_number);
-                }
-            }
-            line_number += 1;
-        }
+    fn print_log(&self, line_number: u32, error: &str) {
+        println!("Error: {}, line: {}", error, line_number)
     }
 }
 
@@ -225,14 +252,9 @@ fn main() -> Result<(), ()> {
     let width = args.width;
     let image = Image::new(width, height);
 
-    let mut logo_parser = LogoParser {
-        file_path: file_path.to_str().unwrap().to_string(),
-        width: width,
-        height: height,
-        pen_up: true,
-    };
+    let mut logo_parser = LogoParser::new(file_path.to_str().unwrap().to_string());
 
-    logo_parser.ParseLogo();
+    logo_parser.ParseAction();
 
     match image_path.extension().map(|s| s.to_str()).flatten() {
         Some("svg") => {
