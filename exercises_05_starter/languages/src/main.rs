@@ -30,15 +30,30 @@ struct Person {
     greetings: Vec<Box<dyn Greeting>>,
 }
 
-// TODO (1): Add your impl From block below, before main!
+// implement the From trait, such that you can convert a &str into a Box<dyn Greeting>.
+//You can assume that only valid strings will be given.
+//In a real codebase, you would want to handle errors (maybe by using the TryFrom trait), but for this exercise, you can assume that the input is valid.
+trait From {
+    fn into(self) -> Box<dyn Greeting>;
+}
 
+impl From for &str {
+    fn into(self) -> Box<dyn Greeting> {
+        match self {
+            "English" => Box::new(English),
+            "Spanish" => Box::new(Spanish),
+            "French" => Box::new(French),
+            _ => unreachable!("Invalid greeting"),
+        }
+    }
+}
 
 // DO NOT NEED TO CHANGE MAIN
 fn main() {
     // john can speak English and Spanish
     let person = Person {
         name: "John".to_string(),
-        greetings: vec!["English".into(), "Spanish".into()],
+        greetings: vec![From::into("English"), From::into("Spanish")],
     };
 
     speak_all_greetings(&person);
@@ -46,7 +61,7 @@ fn main() {
     // jane can speak French
     let person = Person {
         name: "Jane".to_string(),
-        greetings: vec!["French".into()],
+        greetings: vec![From::into("French")],
     };
 
     speak_all_greetings(&person);
@@ -55,4 +70,13 @@ fn main() {
 fn speak_all_greetings(person: &Person) {
     println!("{} says:", person.name);
     //TODO (2): iterate over the greetings and call greet() on each one
+    for greeting in &person.greetings {
+        greeting.greet();
+    }
+}
+
+#[test]
+fn t() {
+    let greeting: Box<dyn Greeting> = From::into("English");
+    greeting.greet();
 }
