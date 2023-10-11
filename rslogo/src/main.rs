@@ -26,41 +26,12 @@ struct Args {
     /// Width
     width: u32,
 }
-struct CommandError(String);
 
-#[derive(Default)]
-struct LogoParser<'a> {
-    width: u32,
-    height: u32,
-    pen_up: bool,
-    xcor: f32,
-    ycor: f32,
-    direction: f32,
-    pen_color: f32,
-    variables: HashMap<String, f32>,
-    line_number: usize,
-    // contents: &'a str,
-    lines: Option<std::str::Lines<'a>>,
-    // queue: Vec<String>,
+trait GetValue {
+    fn get_value(&self, name: &str) -> Option<f32>;
 }
-impl<'a> LogoParser<'a> {
-    fn new(c: &'a str) -> Self {
-        LogoParser {
-            width: 100,
-            height: 100,
-            pen_up: false,
-            xcor: 0.0,
-            ycor: 0.0,
-            direction: 0.0,
-            pen_color: 0.0,
-            variables: HashMap::new(),
-            line_number: 1,
-            lines: Some(c.lines()),
-            // contents: c,
-        }
-    }
 
-    //get variables by searching in hashmap or get value from string
+impl GetValue for LogoParser<'_> {
     fn get_value(&self, name: &str) -> Option<f32> {
         if name.starts_with(QUOTES) {
             let arg = name[1..name.len()].to_string();
@@ -96,6 +67,78 @@ impl<'a> LogoParser<'a> {
             return None;
         }
     }
+}
+
+struct CommandError(String);
+
+#[derive(Default)]
+struct LogoParser<'a> {
+    width: u32,
+    height: u32,
+    pen_up: bool,
+    xcor: f32,
+    ycor: f32,
+    direction: f32,
+    pen_color: f32,
+    variables: HashMap<String, f32>,
+    line_number: usize,
+    // contents: &'a str,
+    lines: Option<std::str::Lines<'a>>,
+    // queue: Vec<String>,
+}
+impl<'a> LogoParser<'a> {
+    fn new(c: &'a str, w: u32, h: u32) -> Self {
+        LogoParser {
+            width: w,
+            height: h,
+            pen_up: false,
+            xcor: w as f32 / 2.0,
+            ycor: h as f32 / 2.0,
+            direction: 0.0,
+            pen_color: 0.0,
+            variables: HashMap::new(),
+            line_number: 1,
+            lines: Some(c.lines()),
+            // contents: c,
+        }
+    }
+
+    //get variables by searching in hashmap or get value from string
+    // fn get_value(&self, name: &str) -> Option<f32> {
+    //     if name.starts_with(QUOTES) {
+    //         let arg = name[1..name.len()].to_string();
+    //         let result = arg.parse::<f32>();
+    //         match result {
+    //             Ok(result) => {
+    //                 return Some(result);
+    //             }
+    //             Err(_) => {
+    //                 return None;
+    //             }
+    //         }
+    //     } else if name.starts_with(":") {
+    //         let arg = name[1..name.len()].to_string();
+
+    //         match self.variables.get(&arg) {
+    //             Some(result) => {
+    //                 return Some(*result);
+    //             }
+    //             None => {
+    //                 return None;
+    //             }
+    //         }
+    //     } else if name.eq("XCOR") {
+    //         return Some(self.xcor);
+    //     } else if name.eq("YCOR") {
+    //         return Some(self.ycor);
+    //     } else if name.eq("HEADING") {
+    //         return Some(self.direction);
+    //     } else if name.eq("COLOR") {
+    //         return Some(self.pen_color);
+    //     } else {
+    //         return None;
+    //     }
+    // }
 
     //command entry
     fn parse_action(&mut self) -> Result<(), ()> {
@@ -224,16 +267,22 @@ impl<'a> LogoParser<'a> {
                 }
 
                 if commands.len() == 5 {
-                    let first = self.get_value(commands[2]);
-                    let second = self.get_value(commands[3]);
-                    if first.is_none()
-                        || second.is_none()
-                        || (first.unwrap() == second.unwrap() && !flag)
-                        || (first.unwrap() != second.unwrap() && flag)
-                    {
+                    let first = self.get_value(commands[2]).expect("Null value");
+                    let second = self.get_value(commands[3]).expect("Null value");
+                    // if first != second &&flag  {
+                    //  println!("fjiewjfojeoijf");
+                    // }
+                    // if ((first == second) && !flag) | ((first != second) && flag) {
+                    //     flag = false;
+                    // } else {
+                    //     flag = true;
+                    // }
+
+                    if first == second && !flag {
                         flag = false;
-                    } else {
-                        flag = true;
+                    }
+                    if first != second && flag {
+                        flag = false;
                     }
 
                     if commands[4] != "[" {
@@ -243,18 +292,6 @@ impl<'a> LogoParser<'a> {
                     let mut count = 0;
                     // if flag {
                     let mut cmd: VecDeque<&str> = VecDeque::new();
-                    // loop {
-
-                    // while let Some(line) = self.lines.as_mut().unwrap().next() {
-                    //   if line.len() == 0 {
-                    //       self.line_number += 1;
-                    //       continue;
-                    //   }}
-                    // let a =self.lines.as_mut().unwrap().nth(1);
-                    // let b = self.lines.as_mut().unwrap().nth(2);
-                    // let c = self.lines.as_mut().unwrap().nth(3);
-                    // let d = self.lines.as_mut().unwrap().nth(4);
-                    // let f = self.lines.as_mut().unwrap().nth(5);
 
                     if !flag {
                         loop {
@@ -269,7 +306,7 @@ impl<'a> LogoParser<'a> {
                                 continue;
                             }
 
-                            if !line.eq("]")  {
+                            if !line.contains("]") {
                                 // count += 1;
                                 // cmd.push_back(line);
                             } else {
@@ -279,13 +316,6 @@ impl<'a> LogoParser<'a> {
                             self.line_number += 1;
                         }
                     }
-                    // match self.parse_action_with_vec(&mut cmd) {
-                    //     Ok(_) => {}
-                    //     Err(_) => {
-                    //         return Err(CommandError("Wrong type of arguments".to_string()));
-                    //     }
-                    // }
-                    // }
 
                     if !flag {
                         // self.line_number += count + 1;
@@ -462,7 +492,7 @@ fn main() -> Result<(), ()> {
     file.read_to_string(&mut contents)
         .expect("Unable to read file");
 
-    let mut logo_parser = LogoParser::new(&contents);
+    let mut logo_parser = LogoParser::new(&contents, width, height);
 
     //  if let result =   logo_parser.parse_action(){
     logo_parser.parse_action();
