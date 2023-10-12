@@ -5,7 +5,7 @@ use std::{
     io::{Lines, Read},
     path::PathBuf,
 };
-use unsvg::Image;
+use unsvg::{Color, Image, COLORS};
 
 mod drawsvg;
 mod tool;
@@ -38,11 +38,11 @@ impl Tool for LogoParser<'_> {
                     return Some(result);
                 }
                 Err(_) => {
-                  if arg == "TRUE"{
-                    return Some(1.0);
-                  }else if arg == "FALSE"{
-                    return Some(0.0);
-                  }
+                    if arg == "TRUE" {
+                        return Some(1.0);
+                    } else if arg == "FALSE" {
+                        return Some(0.0);
+                    }
                     return None;
                 }
             }
@@ -64,7 +64,7 @@ impl Tool for LogoParser<'_> {
         } else if name.eq("HEADING") {
             return Some(self.direction);
         } else if name.eq("COLOR") {
-            return Some(self.pen_color);
+            return Some(self.pen_color as f32);
         } else {
             return None;
         }
@@ -82,7 +82,7 @@ struct LogoParser<'a> {
     xcor: f32,
     ycor: f32,
     direction: f32,
-    pen_color: f32,
+    pen_color: i32,
     variables: HashMap<String, f32>,
     line_number: usize,
     // contents: &'a str,
@@ -99,11 +99,10 @@ impl<'a> LogoParser<'a> {
             xcor: w as f32 / 2.0,
             ycor: h as f32 / 2.0,
             direction: 0.0,
-            pen_color: 0.0,
+            pen_color: 0,
             variables: HashMap::new(),
             line_number: 1,
             lines: Some(c.lines()),
-            // contents: c,
         }
     }
 
@@ -128,8 +127,8 @@ impl<'a> LogoParser<'a> {
         Ok(())
     }
 
-    fn parse_action_with_vec(&mut self, commands: & VecDeque<&str>) -> Result<(), ()> {
-        let mut  vec = commands.clone();
+    fn parse_action_with_vec(&mut self, commands: &VecDeque<&str>) -> Result<(), ()> {
+        let mut vec = commands.clone();
         while let Some(line) = vec.pop_front() {
             if line.len() == 0 {
                 continue;
@@ -266,109 +265,83 @@ impl<'a> LogoParser<'a> {
                     flag = true;
                 } else if arg.eq("NE") {
                     flag = false;
-                } else if arg.starts_with(":"){
+                } else if arg.starts_with(":") {
                     let v = self.get_value(&arg);
                     match v {
                         Some(result) => {
-                            if result == 0.0{
+                            if result == 0.0 {
                                 flag = false;
-                            }else if result == 1.0 {
+                            } else if result == 1.0 {
                                 flag = true;
-                            } 
+                            }
                         }
                         None => {
                             return Err(CommandError("Variable not found".to_string()));
                         }
                     }
 
+                    let mut v: VecDeque<&str> = VecDeque::new();
 
-                    let mut v:VecDeque<&str> = VecDeque::new();
-                 
-                  let mut semicolon = 1;
-                  while semicolon>0 {
-                    let  line  = self.lines.as_mut().unwrap().next().expect("Error parsing while." ) ;
-                      if line.contains("["){
-                        semicolon+=1;
-                      }else if line.contains("]"){
-                        semicolon-=1;
-                      }
-                      v.push_back(line);
-                  }
-
-                  loop{
-                    let first = self.get_value(commands[1]).expect("Null value");
-                    if first!= 1.0 {
-                      break;
+                    let mut semicolon = 1;
+                    while semicolon > 0 {
+                        let line = self
+                            .lines
+                            .as_mut()
+                            .unwrap()
+                            .next()
+                            .expect("Error parsing while.");
+                        if line.contains("[") {
+                            semicolon += 1;
+                        } else if line.contains("]") {
+                            semicolon -= 1;
+                        }
+                        v.push_back(line);
                     }
-                    let _ =  self.parse_action_with_vec(& v);
-                  }   
+
+                    loop {
+                        let first = self.get_value(commands[1]).expect("Null value");
+                        if first != 1.0 {
+                            break;
+                        }
+                        let _ = self.parse_action_with_vec(&v);
+                    }
                     if !flag {
                         self.block = false;
                     }
+                } else if commands.len() >= 5 {
+                    let mut v: VecDeque<&str> = VecDeque::new();
 
-
-
-
-
-                }else if commands.len() >=5 {
-
-                  let mut v:VecDeque<&str> = VecDeque::new();
-                 
-                  let mut semicolon = 1;
-                  while semicolon>0 {
-                    let  line  = self.lines.as_mut().unwrap().next().expect("Error parsing while." ) ;
-                      if line.contains("["){
-                        semicolon+=1;
-                      }else if line.contains("]"){
-                        semicolon-=1;
-                      }
-                      v.push_back(line);
-                  }
-
-                  loop{
-                    let first = self.get_value(commands[2]).expect("Null value");
-                    let second = self.get_value(commands[3]).expect("Null value");
-                    if first!=second {
-                      break;
+                    let mut semicolon = 1;
+                    while semicolon > 0 {
+                        let line = self
+                            .lines
+                            .as_mut()
+                            .unwrap()
+                            .next()
+                            .expect("Error parsing while.");
+                        if line.contains("[") {
+                            semicolon += 1;
+                        } else if line.contains("]") {
+                            semicolon -= 1;
+                        }
+                        v.push_back(line);
                     }
-                    let _ =  self.parse_action_with_vec(& v);
-                  }   
+
+                    loop {
+                        let first = self.get_value(commands[2]).expect("Null value");
+                        let second = self.get_value(commands[3]).expect("Null value");
+                        if first != second {
+                            break;
+                        }
+                        let _ = self.parse_action_with_vec(&v);
+                    }
                     if !flag {
                         self.block = false;
                     }
-
-                }
-                
-                else {
+                } else {
                     return Err(CommandError("Wrong type of arguments".to_string()));
                 }
-
-                // let mut v:VecDeque<&str> = VecDeque::new();
-                 
-                //   let mut semicolon = 1;
-                //   while semicolon>0 {
-                //     let  line  = self.lines.as_mut().unwrap().next().expect("Error parsing while." ) ;
-                //       if line.contains("["){
-                //         semicolon+=1;
-                //       }else if line.contains("]"){
-                //         semicolon-=1;
-                //       }
-                //       v.push_back(line);
-                //   }
-
-                //   loop{
-                //     let first = self.get_value(commands[2]).expect("Null value");
-                //     let second = self.get_value(commands[3]).expect("Null value");
-                //     if first!=second {
-                //       break;
-                //     }
-                //     let _ =  self.parse_action_with_vec(& v);
-                //   }   
-                //     if !flag {
-                //         self.block = false;
-                //     }
-                    Ok(0.0)
-               
+                Ok(0.0)
             }
 
             _ => {
@@ -387,7 +360,7 @@ impl<'a> LogoParser<'a> {
         }
         match part[0] {
             "//" => {}
-           
+
             "PENUP" => {
                 self.pen_up = true;
                 match self.process_actions(&part) {
@@ -406,57 +379,50 @@ impl<'a> LogoParser<'a> {
                     }
                 }
             }
-            "FORWARD" => { 
-                match self.process_actions(&part) {
-                    Ok(d) => {
-                        self.ycor -= d * self.direction.to_radians().sin();
-                        println!("forward {}", d);
-                    }
-                    Err(e) => {
-                        return self.print_log(&e.0);
-                    }
+            "FORWARD" => match self.process_actions(&part) {
+                Ok(d) => {
+                    self.ycor -= d * self.direction.to_radians().sin();
+                    println!("forward {}", d);
                 }
-            }
-            "BACK" => {
-                 
-                match self.process_actions(&part) {
-                    Ok(d) => {
-                      self.ycor += d * self.direction.to_radians().sin();
-                        println!("b {}", d);
-                    }
-                    Err(e) => {
-                        return self.print_log(&e.0);
-                    }
+                Err(e) => {
+                    return self.print_log(&e.0);
                 }
-            }
-            "RIGHT" => {
-                 
-
-                match self.process_actions(&part) {
-                    Ok(d) => {
-                      self.xcor += d * self.direction.to_radians().cos();
-                        println!("r {}", d);
-                    }
-                    Err(e) => {
-                        return self.print_log(&e.0);
-                    }
+            },
+            "BACK" => match self.process_actions(&part) {
+                Ok(d) => {
+                    self.ycor += d * self.direction.to_radians().sin();
+                    println!("b {}", d);
                 }
-            }
-            "LEFT" => { 
-                match self.process_actions(&part) {
-                    Ok(d) => {
-                      self.xcor -= d * self.direction.to_radians().cos();
-                        println!("left {}", d);
-                    }
-                    Err(e) => {
-                        return self.print_log(&e.0);
-                    }
+                Err(e) => {
+                    return self.print_log(&e.0);
                 }
-            }
+            },
+            "RIGHT" => match self.process_actions(&part) {
+                Ok(d) => {
+                    self.xcor += d * self.direction.to_radians().cos();
+                    println!("r {}", d);
+                }
+                Err(e) => {
+                    return self.print_log(&e.0);
+                }
+            },
+            "LEFT" => match self.process_actions(&part) {
+                Ok(d) => {
+                    self.xcor -= d * self.direction.to_radians().cos();
+                    println!("left {}", d);
+                }
+                Err(e) => {
+                    return self.print_log(&e.0);
+                }
+            },
 
             "SETPENCOLOR" => match self.process_actions(&part) {
                 Ok(d) => {
-                    self.pen_color = d;
+                    if d >= 0.0 && d <= 16.0 {
+                        self.pen_color = d as i32;
+                    } else {
+                        return self.print_log("Wrong color");
+                    }
                     println!("COLOR {}", self.pen_color);
                 }
                 Err(e) => {
@@ -508,17 +474,13 @@ impl<'a> LogoParser<'a> {
                 }
             },
             "IF" => match self.process_actions(&part) {
-                Ok(d) => {
-                   
-                }
+                Ok(d) => {}
                 Err(e) => {
                     return self.print_log(&e.0);
                 }
             },
             "WHILE" => match self.process_actions(&part) {
-                Ok(d) => {
-                     
-                }
+                Ok(d) => {}
                 Err(e) => {
                     return self.print_log(&e.0);
                 }
@@ -536,67 +498,6 @@ impl<'a> LogoParser<'a> {
         Err(())
     }
 
-    fn process_if(
-        &mut self,
-        commands: &Vec<&str>,
-        lines: &mut Option<std::str::Lines>,
-        line_number: &mut usize,
-    ) -> Result<f32, CommandError> {
-        if commands.len() < 5 {
-            return Err(CommandError("Wrong number of arguments".to_string()));
-        }
-        let mut flag = true;
-        let arg = commands[1].to_string();
-        if arg.eq("EQ") {
-            flag = true;
-        } else if arg.eq("NE") {
-            flag = false;
-        } else {
-            return Err(CommandError("Wrong type of arguments".to_string()));
-        }
-
-        if commands.len() == 5 {
-            let first = self.get_value(commands[2]).expect("Null value");
-            let second = self.get_value(commands[3]).expect("Null value");
-            if first == second && !flag {
-                flag = false;
-            }
-            if first != second && flag {
-                flag = false;
-            }
-
-            if commands[4] != "[" {
-                return Err(CommandError("Wrong type of arguments".to_string()));
-            }
-
-            let mut count = 0;
-            // if flag {
-
-            if !flag {
-                loop {
-                    let line = lines.as_mut().unwrap().next();
-                    if line.is_none() {
-                        break;
-                    }
-                    let line = line.unwrap();
-                    if line.len() == 0 {
-                        // count += 1;
-                        continue;
-                    }
-                    if !line.contains("]") {
-                    } else {
-                        *line_number += 1;
-                        break;
-                    }
-                    *line_number += 1;
-                }
-            }
-            Ok(0.0)
-        } else {
-            Ok(0.0)
-        }
-    }
-
     fn draw(&self, val: f32, arg: &str) {
         match arg {
             "LEFT" => {}
@@ -607,44 +508,6 @@ impl<'a> LogoParser<'a> {
         }
     }
 }
-
-//get variables by searching in hashmap or get value from string
-// impl Tool for LogoParser<'_> {
-//     fn get_value(&self, name: &str) -> Option<f32> {
-//         if name.starts_with(QUOTES) {
-//             let arg = name[1..name.len()].to_string();
-//             let result = arg.parse::<f32>();
-//             match result {
-//                 Ok(result) => {
-//                     return Some(result);
-//                 }
-//                 Err(_) => {
-//                     return None;
-//                 }
-//             }
-//         } else if name.starts_with(":") {
-//             let arg = name[1..name.len()].to_string();
-
-//             match self.variables.get(&arg) {
-//                 Some(result) => {
-//                     return Some(*result);
-//                 }
-//                 None => {
-//                     return None;
-//                 }
-//             }
-//         } else if name.eq("XCOR") {
-//             return Some(self.xcor);
-//         } else if name.eq("YCOR") {
-//             return Some(self.ycor);
-//         } else if name.eq("HEADING") {
-//             return Some(self.direction);
-//         } else if name.eq("COLOR") {
-//             return Some(self.pen_color);
-//         } else {
-//             return None;
-//         }
-//     }
 
 fn main() -> Result<(), ()> {
     let args: Args = Args::parse();
