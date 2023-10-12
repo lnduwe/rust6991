@@ -38,6 +38,11 @@ impl Tool for LogoParser<'_> {
                     return Some(result);
                 }
                 Err(_) => {
+                  if arg == "TRUE"{
+                    return Some(1.0);
+                  }else if arg == "FALSE"{
+                    return Some(0.0);
+                  }
                     return None;
                 }
             }
@@ -123,8 +128,9 @@ impl<'a> LogoParser<'a> {
         Ok(())
     }
 
-    fn parse_action_with_vec(&mut self, commands: &mut VecDeque<&str>) -> Result<(), ()> {
-        while let Some(line) = commands.pop_front() {
+    fn parse_action_with_vec(&mut self, commands: & VecDeque<&str>) -> Result<(), ()> {
+        let mut  vec = commands.clone();
+        while let Some(line) = vec.pop_front() {
             if line.len() == 0 {
                 continue;
             }
@@ -250,44 +256,120 @@ impl<'a> LogoParser<'a> {
                     Ok(0.0)
                 }
             }
-            // "WHILE" => {
-                // if commands.len() < 5 {
-                //     return Err(CommandError("Wrong number of arguments".to_string()));
-                // }
-                // let mut flag = true;
-                // let arg = commands[1].to_string();
-                // if arg.eq("EQ") {
-                //     flag = true;
-                // } else if arg.eq("NE") {
-                //     flag = false;
-                // } else {
-                //     return Err(CommandError("Wrong type of arguments".to_string()));
-                // }
+            "WHILE" => {
+                if commands.len() < 3 {
+                    return Err(CommandError("Wrong number of arguments".to_string()));
+                }
+                let mut flag = true;
+                let arg = commands[1].to_string();
+                if arg.eq("EQ") {
+                    flag = true;
+                } else if arg.eq("NE") {
+                    flag = false;
+                } else if arg.starts_with(":"){
+                    let v = self.get_value(&arg);
+                    match v {
+                        Some(result) => {
+                            if result == 0.0{
+                                flag = false;
+                            }else if result == 1.0 {
+                                flag = true;
+                            } 
+                        }
+                        None => {
+                            return Err(CommandError("Variable not found".to_string()));
+                        }
+                    }
 
-                // if commands.len() == 5 {
+
+                    let mut v:VecDeque<&str> = VecDeque::new();
+                 
+                  let mut semicolon = 1;
+                  while semicolon>0 {
+                    let  line  = self.lines.as_mut().unwrap().next().expect("Error parsing while." ) ;
+                      if line.contains("["){
+                        semicolon+=1;
+                      }else if line.contains("]"){
+                        semicolon-=1;
+                      }
+                      v.push_back(line);
+                  }
+
+                  loop{
+                    let first = self.get_value(commands[1]).expect("Null value");
+                    if first!= 1.0 {
+                      break;
+                    }
+                    let _ =  self.parse_action_with_vec(& v);
+                  }   
+                    if !flag {
+                        self.block = false;
+                    }
+
+
+
+
+
+                }else if commands.len() >=5 {
+
+                  let mut v:VecDeque<&str> = VecDeque::new();
+                 
+                  let mut semicolon = 1;
+                  while semicolon>0 {
+                    let  line  = self.lines.as_mut().unwrap().next().expect("Error parsing while." ) ;
+                      if line.contains("["){
+                        semicolon+=1;
+                      }else if line.contains("]"){
+                        semicolon-=1;
+                      }
+                      v.push_back(line);
+                  }
+
+                  loop{
+                    let first = self.get_value(commands[2]).expect("Null value");
+                    let second = self.get_value(commands[3]).expect("Null value");
+                    if first!=second {
+                      break;
+                    }
+                    let _ =  self.parse_action_with_vec(& v);
+                  }   
+                    if !flag {
+                        self.block = false;
+                    }
+
+                }
+                
+                else {
+                    return Err(CommandError("Wrong type of arguments".to_string()));
+                }
+
+                // let mut v:VecDeque<&str> = VecDeque::new();
+                 
+                //   let mut semicolon = 1;
+                //   while semicolon>0 {
+                //     let  line  = self.lines.as_mut().unwrap().next().expect("Error parsing while." ) ;
+                //       if line.contains("["){
+                //         semicolon+=1;
+                //       }else if line.contains("]"){
+                //         semicolon-=1;
+                //       }
+                //       v.push_back(line);
+                //   }
+
+                //   loop{
                 //     let first = self.get_value(commands[2]).expect("Null value");
                 //     let second = self.get_value(commands[3]).expect("Null value");
-                //     if first == second && !flag {
-                //         flag = false;
+                //     if first!=second {
+                //       break;
                 //     }
-                //     if first != second && flag {
-                //         flag = false;
-                //     }
-
-                //     if commands[4] != "[" {
-                //         return Err(CommandError("Wrong type of arguments".to_string()));
-                //     }
-
-                //     let v: Vec<String> = commands.iter().map(|s| s.to_string()).collect();
-
+                //     let _ =  self.parse_action_with_vec(& v);
+                //   }   
                 //     if !flag {
                 //         self.block = false;
                 //     }
-                //     Ok(0.0)
-                // } else {
-                //     Ok(0.0)
-                // }
-            // }
+                    Ok(0.0)
+               
+            }
 
             _ => {
                 return Err(CommandError("Wrong type of command".to_string()));
@@ -324,10 +406,10 @@ impl<'a> LogoParser<'a> {
                     }
                 }
             }
-            "FORWARD" => {
-                self.direction = 0.0;
+            "FORWARD" => { 
                 match self.process_actions(&part) {
                     Ok(d) => {
+                        self.ycor -= d * self.direction.to_radians().sin();
                         println!("forward {}", d);
                     }
                     Err(e) => {
@@ -336,9 +418,10 @@ impl<'a> LogoParser<'a> {
                 }
             }
             "BACK" => {
-                self.direction = 180.0;
+                 
                 match self.process_actions(&part) {
                     Ok(d) => {
+                      self.ycor += d * self.direction.to_radians().sin();
                         println!("b {}", d);
                     }
                     Err(e) => {
@@ -347,10 +430,11 @@ impl<'a> LogoParser<'a> {
                 }
             }
             "RIGHT" => {
-                self.direction = 90.0;
+                 
 
                 match self.process_actions(&part) {
                     Ok(d) => {
+                      self.xcor += d * self.direction.to_radians().cos();
                         println!("r {}", d);
                     }
                     Err(e) => {
@@ -358,11 +442,10 @@ impl<'a> LogoParser<'a> {
                     }
                 }
             }
-            "LEFT" => {
-                self.direction = 270.0;
-
+            "LEFT" => { 
                 match self.process_actions(&part) {
                     Ok(d) => {
+                      self.xcor -= d * self.direction.to_radians().cos();
                         println!("left {}", d);
                     }
                     Err(e) => {
@@ -426,7 +509,15 @@ impl<'a> LogoParser<'a> {
             },
             "IF" => match self.process_actions(&part) {
                 Ok(d) => {
-                    //  self.process_actions(array)
+                   
+                }
+                Err(e) => {
+                    return self.print_log(&e.0);
+                }
+            },
+            "WHILE" => match self.process_actions(&part) {
+                Ok(d) => {
+                     
                 }
                 Err(e) => {
                     return self.print_log(&e.0);
