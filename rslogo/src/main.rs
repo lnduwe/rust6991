@@ -8,8 +8,9 @@ use std::{
 use unsvg::Image;
 
 mod drawsvg;
+mod tool;
 
-const QUOTES: char = '\"';
+use tool::*;
 
 /// A simple program to parse four arguments using clap.
 #[derive(Parser)]
@@ -27,11 +28,7 @@ struct Args {
     width: u32,
 }
 
-trait GetValue {
-    fn get_value(&self, name: &str) -> Option<f32>;
-}
-
-impl GetValue for LogoParser<'_> {
+impl Tool for LogoParser<'_> {
     fn get_value(&self, name: &str) -> Option<f32> {
         if name.starts_with(QUOTES) {
             let arg = name[1..name.len()].to_string();
@@ -76,6 +73,7 @@ struct LogoParser<'a> {
     width: u32,
     height: u32,
     pen_up: bool,
+    block: bool,
     xcor: f32,
     ycor: f32,
     direction: f32,
@@ -92,6 +90,7 @@ impl<'a> LogoParser<'a> {
             width: w,
             height: h,
             pen_up: false,
+            block: true,
             xcor: w as f32 / 2.0,
             ycor: h as f32 / 2.0,
             direction: 0.0,
@@ -102,43 +101,6 @@ impl<'a> LogoParser<'a> {
             // contents: c,
         }
     }
-
-    //get variables by searching in hashmap or get value from string
-    // fn get_value(&self, name: &str) -> Option<f32> {
-    //     if name.starts_with(QUOTES) {
-    //         let arg = name[1..name.len()].to_string();
-    //         let result = arg.parse::<f32>();
-    //         match result {
-    //             Ok(result) => {
-    //                 return Some(result);
-    //             }
-    //             Err(_) => {
-    //                 return None;
-    //             }
-    //         }
-    //     } else if name.starts_with(":") {
-    //         let arg = name[1..name.len()].to_string();
-
-    //         match self.variables.get(&arg) {
-    //             Some(result) => {
-    //                 return Some(*result);
-    //             }
-    //             None => {
-    //                 return None;
-    //             }
-    //         }
-    //     } else if name.eq("XCOR") {
-    //         return Some(self.xcor);
-    //     } else if name.eq("YCOR") {
-    //         return Some(self.ycor);
-    //     } else if name.eq("HEADING") {
-    //         return Some(self.direction);
-    //     } else if name.eq("COLOR") {
-    //         return Some(self.pen_color);
-    //     } else {
-    //         return None;
-    //     }
-    // }
 
     //command entry
     fn parse_action(&mut self) -> Result<(), ()> {
@@ -269,15 +231,6 @@ impl<'a> LogoParser<'a> {
                 if commands.len() == 5 {
                     let first = self.get_value(commands[2]).expect("Null value");
                     let second = self.get_value(commands[3]).expect("Null value");
-                    // if first != second &&flag  {
-                    //  println!("fjiewjfojeoijf");
-                    // }
-                    // if ((first == second) && !flag) | ((first != second) && flag) {
-                    //     flag = false;
-                    // } else {
-                    //     flag = true;
-                    // }
-
                     if first == second && !flag {
                         flag = false;
                     }
@@ -289,44 +242,52 @@ impl<'a> LogoParser<'a> {
                         return Err(CommandError("Wrong type of arguments".to_string()));
                     }
 
-                    let mut count = 0;
-                    // if flag {
-                    let mut cmd: VecDeque<&str> = VecDeque::new();
-
                     if !flag {
-                        loop {
-                            let line = self.lines.as_mut().unwrap().next();
-
-                            if line.is_none() {
-                                break;
-                            }
-                            let line = line.unwrap();
-                            if line.len() == 0 {
-                                // count += 1;
-                                continue;
-                            }
-
-                            if !line.contains("]") {
-                                // count += 1;
-                                // cmd.push_back(line);
-                            } else {
-                                self.line_number += 1;
-                                break;
-                            }
-                            self.line_number += 1;
-                        }
+                        self.block = false;
                     }
-
-                    if !flag {
-                        // self.line_number += count + 1;
-                        return Ok(0.0);
-                    } else {
-                        return Ok(0.0);
-                    }
+                    Ok(0.0)
                 } else {
                     Ok(0.0)
                 }
             }
+            // "WHILE" => {
+                // if commands.len() < 5 {
+                //     return Err(CommandError("Wrong number of arguments".to_string()));
+                // }
+                // let mut flag = true;
+                // let arg = commands[1].to_string();
+                // if arg.eq("EQ") {
+                //     flag = true;
+                // } else if arg.eq("NE") {
+                //     flag = false;
+                // } else {
+                //     return Err(CommandError("Wrong type of arguments".to_string()));
+                // }
+
+                // if commands.len() == 5 {
+                //     let first = self.get_value(commands[2]).expect("Null value");
+                //     let second = self.get_value(commands[3]).expect("Null value");
+                //     if first == second && !flag {
+                //         flag = false;
+                //     }
+                //     if first != second && flag {
+                //         flag = false;
+                //     }
+
+                //     if commands[4] != "[" {
+                //         return Err(CommandError("Wrong type of arguments".to_string()));
+                //     }
+
+                //     let v: Vec<String> = commands.iter().map(|s| s.to_string()).collect();
+
+                //     if !flag {
+                //         self.block = false;
+                //     }
+                //     Ok(0.0)
+                // } else {
+                //     Ok(0.0)
+                // }
+            // }
 
             _ => {
                 return Err(CommandError("Wrong type of command".to_string()));
@@ -335,8 +296,16 @@ impl<'a> LogoParser<'a> {
     }
 
     fn match_action(&mut self, part: &Vec<&str>) -> Result<(), ()> {
+        if part[0] == "]" {
+            self.block = true;
+            return Ok(());
+        }
+        if !self.block {
+            return Ok(());
+        }
         match part[0] {
-            "//" | "]" => {}
+            "//" => {}
+           
             "PENUP" => {
                 self.pen_up = true;
                 match self.process_actions(&part) {
@@ -475,7 +444,116 @@ impl<'a> LogoParser<'a> {
         println!("Error: {}, line: {}", error, self.line_number);
         Err(())
     }
+
+    fn process_if(
+        &mut self,
+        commands: &Vec<&str>,
+        lines: &mut Option<std::str::Lines>,
+        line_number: &mut usize,
+    ) -> Result<f32, CommandError> {
+        if commands.len() < 5 {
+            return Err(CommandError("Wrong number of arguments".to_string()));
+        }
+        let mut flag = true;
+        let arg = commands[1].to_string();
+        if arg.eq("EQ") {
+            flag = true;
+        } else if arg.eq("NE") {
+            flag = false;
+        } else {
+            return Err(CommandError("Wrong type of arguments".to_string()));
+        }
+
+        if commands.len() == 5 {
+            let first = self.get_value(commands[2]).expect("Null value");
+            let second = self.get_value(commands[3]).expect("Null value");
+            if first == second && !flag {
+                flag = false;
+            }
+            if first != second && flag {
+                flag = false;
+            }
+
+            if commands[4] != "[" {
+                return Err(CommandError("Wrong type of arguments".to_string()));
+            }
+
+            let mut count = 0;
+            // if flag {
+
+            if !flag {
+                loop {
+                    let line = lines.as_mut().unwrap().next();
+                    if line.is_none() {
+                        break;
+                    }
+                    let line = line.unwrap();
+                    if line.len() == 0 {
+                        // count += 1;
+                        continue;
+                    }
+                    if !line.contains("]") {
+                    } else {
+                        *line_number += 1;
+                        break;
+                    }
+                    *line_number += 1;
+                }
+            }
+            Ok(0.0)
+        } else {
+            Ok(0.0)
+        }
+    }
+
+    fn draw(&self, val: f32, arg: &str) {
+        match arg {
+            "LEFT" => {}
+            "RIGHT" => {}
+            "FORWARD" => {}
+            "BACK" => {}
+            _ => {}
+        }
+    }
 }
+
+//get variables by searching in hashmap or get value from string
+// impl Tool for LogoParser<'_> {
+//     fn get_value(&self, name: &str) -> Option<f32> {
+//         if name.starts_with(QUOTES) {
+//             let arg = name[1..name.len()].to_string();
+//             let result = arg.parse::<f32>();
+//             match result {
+//                 Ok(result) => {
+//                     return Some(result);
+//                 }
+//                 Err(_) => {
+//                     return None;
+//                 }
+//             }
+//         } else if name.starts_with(":") {
+//             let arg = name[1..name.len()].to_string();
+
+//             match self.variables.get(&arg) {
+//                 Some(result) => {
+//                     return Some(*result);
+//                 }
+//                 None => {
+//                     return None;
+//                 }
+//             }
+//         } else if name.eq("XCOR") {
+//             return Some(self.xcor);
+//         } else if name.eq("YCOR") {
+//             return Some(self.ycor);
+//         } else if name.eq("HEADING") {
+//             return Some(self.direction);
+//         } else if name.eq("COLOR") {
+//             return Some(self.pen_color);
+//         } else {
+//             return None;
+//         }
+//     }
 
 fn main() -> Result<(), ()> {
     let args: Args = Args::parse();
