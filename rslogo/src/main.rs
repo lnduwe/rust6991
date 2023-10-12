@@ -199,7 +199,7 @@ impl<'a> LogoParser<'a> {
             "ADDASSIGN" => {
                 if commands.len() != 3 {
                     return Err(CommandError("Wrong number of arguments".to_string()));
-                } else if !commands[1].starts_with(QUOTES) {
+                } else if commands[1].starts_with(QUOTES) {
                     return Err(CommandError("Wrong type of arguments".to_string()));
                 } else {
                     let name = &commands[1][1..commands[1].len()].to_string();
