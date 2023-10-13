@@ -29,48 +29,6 @@ struct Args {
     width: u32,
 }
 
-impl Tool for LogoParser<'_> {
-    fn get_value(&self, name: &str) -> Option<f32> {
-        if name.starts_with(QUOTES) {
-            let arg = name[1..name.len()].to_string();
-            let result = arg.parse::<f32>();
-            match result {
-                Ok(result) => {
-                    return Some(result);
-                }
-                Err(_) => {
-                    if arg == "TRUE" {
-                        return Some(1.0);
-                    } else if arg == "FALSE" {
-                        return Some(0.0);
-                    }
-                    return None;
-                }
-            }
-        } else if name.starts_with(":") {
-            let arg = name[1..name.len()].to_string();
-
-            match self.variables.get(&arg) {
-                Some(result) => {
-                    return Some(*result);
-                }
-                None => {
-                    return None;
-                }
-            }
-        } else if name.eq("XCOR") {
-            return Some(self.xcor);
-        } else if name.eq("YCOR") {
-            return Some(self.ycor);
-        } else if name.eq("HEADING") {
-            return Some(self.direction);
-        } else if name.eq("COLOR") {
-            return Some(self.pen_color as f32);
-        } else {
-            return None;
-        }
-    }
-}
 
 struct CommandError(String);
 
@@ -147,7 +105,7 @@ impl<'a> LogoParser<'a> {
         Ok(())
     }
 
-    //parse arguments and return value
+    //draw pictures and return value
     fn process_actions(&mut self, commands: &Vec<&str>) -> Result<f32, CommandError> {
         match commands[0] {
             "PENUP" | "PENDOWN" => {
@@ -200,9 +158,11 @@ impl<'a> LogoParser<'a> {
             "ADDASSIGN" => {
                 if commands.len() != 3 {
                     return Err(CommandError("Wrong number of arguments".to_string()));
-                } else if commands[1].starts_with(QUOTES) {
-                    return Err(CommandError("Wrong type of arguments".to_string()));
-                } else {
+                } 
+                // else if !commands[1].starts_with(QUOTES) {
+                //     return Err(CommandError("Wrong type of arguments".to_string()));
+                // } 
+                else {
                     let name = &commands[1][1..commands[1].len()].to_string();
                     let odd_value = self.variables.get(name);
                     if odd_value.is_none() {
@@ -257,9 +217,9 @@ impl<'a> LogoParser<'a> {
                 }
             }
             "WHILE" => {
-                if commands.len() < 3 {
-                    return Err(CommandError("Wrong number of arguments".to_string()));
-                }
+                // if commands.len() < 3 {
+                //     return Err(CommandError("Wrong number of arguments".to_string()));
+                // }
                 let mut flag = true;
                 let arg = commands[1].to_string();
                 if arg.eq("EQ") {
