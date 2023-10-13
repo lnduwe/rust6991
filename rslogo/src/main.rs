@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, VecDeque},
     fs::File,
     io::{Lines, Read},
+    ops::{Deref, DerefMut},
     path::PathBuf,
 };
 use unsvg::{Color, Image, COLORS};
@@ -82,15 +83,14 @@ struct LogoParser<'a> {
     xcor: f32,
     ycor: f32,
     direction: f32,
-    pen_color: i32,
+    pen_color: usize,
     variables: HashMap<String, f32>,
     line_number: usize,
-    // contents: &'a str,
+    image: Option<&'a mut Image>,
     lines: Option<std::str::Lines<'a>>,
-    // queue: Vec<String>,
 }
 impl<'a> LogoParser<'a> {
-    fn new(c: &'a str, w: u32, h: u32) -> Self {
+    fn new(c: &'a str, w: u32, h: u32, img: Option<&'a mut Image>) -> Self {
         LogoParser {
             width: w,
             height: h,
@@ -99,10 +99,11 @@ impl<'a> LogoParser<'a> {
             xcor: w as f32 / 2.0,
             ycor: h as f32 / 2.0,
             direction: 0.0,
-            pen_color: 0,
+            pen_color: 8,
             variables: HashMap::new(),
             line_number: 1,
             lines: Some(c.lines()),
+            image: img,
         }
     }
 
@@ -381,7 +382,11 @@ impl<'a> LogoParser<'a> {
             }
             "FORWARD" => match self.process_actions(&part) {
                 Ok(d) => {
-                    self.ycor -= d * self.direction.to_radians().sin();
+                  self.draw(d, "FORWARD");
+                    // self.ycor -= d * self.direction.to_radians().sin();
+                    // (self.xcor, self.ycor) = img
+                    //     .draw_simple_line(self.xcor , self.ycor, self.direction, 100.0, COLORS[1])
+                    //     .expect("Error drawing picture");
                     println!("forward {}", d);
                 }
                 Err(e) => {
@@ -390,7 +395,8 @@ impl<'a> LogoParser<'a> {
             },
             "BACK" => match self.process_actions(&part) {
                 Ok(d) => {
-                    self.ycor += d * self.direction.to_radians().sin();
+                  self.draw(d, "BACK");
+                    // self.ycor += d * self.direction.to_radians().sin();
                     println!("b {}", d);
                 }
                 Err(e) => {
@@ -399,7 +405,8 @@ impl<'a> LogoParser<'a> {
             },
             "RIGHT" => match self.process_actions(&part) {
                 Ok(d) => {
-                    self.xcor += d * self.direction.to_radians().cos();
+                  self.draw(d, "RIGHT");
+                    // self.xcor += d * self.direction.to_radians().cos();
                     println!("r {}", d);
                 }
                 Err(e) => {
@@ -408,7 +415,8 @@ impl<'a> LogoParser<'a> {
             },
             "LEFT" => match self.process_actions(&part) {
                 Ok(d) => {
-                    self.xcor -= d * self.direction.to_radians().cos();
+                  self.draw(d, "LEFT");
+                    // self.xcor -= d * self.direction.to_radians().cos();
                     println!("left {}", d);
                 }
                 Err(e) => {
@@ -419,7 +427,7 @@ impl<'a> LogoParser<'a> {
             "SETPENCOLOR" => match self.process_actions(&part) {
                 Ok(d) => {
                     if d >= 0.0 && d <= 16.0 {
-                        self.pen_color = d as i32;
+                        self.pen_color = d as usize;
                     } else {
                         return self.print_log("Wrong color");
                     }
@@ -498,14 +506,36 @@ impl<'a> LogoParser<'a> {
         Err(())
     }
 
-    fn draw(&self, val: f32, arg: &str) {
+    fn draw(&mut self, val: f32, arg: &str) {
+        if self.pen_up {
+            return;
+        }
         match arg {
-            "LEFT" => {}
-            "RIGHT" => {}
+            "LEFT" => {
+                self.direction -= 90.0;
+            }
+            "RIGHT" => {
+                self.direction += 90.0;
+            }
             "FORWARD" => {}
-            "BACK" => {}
+            "BACK" => {
+                self.direction += 180.0;
+            }
             _ => {}
         }
+
+        (self.xcor, self.ycor) = self
+            .image
+            .as_mut()
+            .expect("Null image")
+            .draw_simple_line(
+                self.xcor,
+                self.ycor,
+                self.direction as i32,
+                val,
+                COLORS[self.pen_color],
+            )
+            .expect("Error drawing picture");
     }
 }
 
@@ -517,40 +547,40 @@ fn main() -> Result<(), ()> {
     let image_path = args.image_path;
     let height = args.height;
     let width = args.width;
-    let image = Image::new(width, height);
+    let mut image = Image::new(width, height);
 
     let mut file = File::open(file_path).expect("Unable to open file");
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Unable to read file");
 
-    let mut logo_parser = LogoParser::new(&contents, width, height);
+    let mut logo_parser = LogoParser::new(&contents, width, height, Some(&mut image));
 
     //  if let result =   logo_parser.parse_action(){
-    logo_parser.parse_action();
+    logo_parser.parse_action()?;
 
     //  }
 
-    // match image_path.extension().map(|s| s.to_str()).flatten() {
-    //     Some("svg") => {
-    //         let res = image.save_svg(&image_path);
-    //         if let Err(e) = res {
-    //             eprintln!("Error saving svg: {e}");
-    //             return Err(());
-    //         }
-    //     }
-    //     Some("png") => {
-    //         let res = image.save_png(&image_path);
-    //         if let Err(e) = res {
-    //             eprintln!("Error saving png: {e}");
-    //             return Err(());
-    //         }
-    //     }
-    //     _ => {
-    //         eprintln!("File extension not supported");
-    //         return Err(());
-    //     }
-    // }
+    match image_path.extension().map(|s| s.to_str()).flatten() {
+        Some("svg") => {
+            let res = image.save_svg(&image_path);
+            if let Err(e) = res {
+                eprintln!("Error saving svg: {e}");
+                return Err(());
+            }
+        }
+        Some("png") => {
+            let res = image.save_png(&image_path);
+            if let Err(e) = res {
+                eprintln!("Error saving png: {e}");
+                return Err(());
+            }
+        }
+        _ => {
+            eprintln!("File extension not supported");
+            return Err(());
+        }
+    }
 
     Ok(())
 }
