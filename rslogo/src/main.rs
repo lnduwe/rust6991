@@ -248,7 +248,9 @@ impl<'a> LogoParser<'a> {
 
     fn match_action(&mut self, part: &Vec<&str>) -> Result<(), ()> {
         if part[0] == "]" {
-            self.block -= 1;
+            if self.block > 0 {
+                self.block -= 1;
+            }
             return Ok(());
         }
         if self.block > 0 {
