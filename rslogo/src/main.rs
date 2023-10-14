@@ -7,7 +7,7 @@ use std::{
     path::PathBuf,
     process::ExitCode,
 };
-use unsvg::{Color, Image, COLORS};
+use unsvg::{get_end_coordinates, Color, Image, COLORS};
 
 mod drawsvg;
 mod tool;
@@ -37,7 +37,7 @@ struct LogoParser<'a> {
     width: u32,
     height: u32,
     pen_up: bool,
-    block: bool,
+    block: i32,
     xcor: f32,
     ycor: f32,
     direction: f32,
@@ -52,8 +52,8 @@ impl<'a> LogoParser<'a> {
         LogoParser {
             width: w,
             height: h,
-            pen_up: false,
-            block: true,
+            pen_up: true,
+            block: 0,
             xcor: w as f32 / 2.0,
             ycor: h as f32 / 2.0,
             direction: 0.0,
@@ -202,6 +202,7 @@ impl<'a> LogoParser<'a> {
                 // if commands.len() < 5 {
                 //     return Err(CommandError("Wrong number of arguments".to_string()));
                 // }
+                self.block += 1;
                 let mut flag = true;
                 // let arg = commands[1].to_string();
                 // if arg.eq("EQ") {
@@ -225,55 +226,49 @@ impl<'a> LogoParser<'a> {
                 //     if commands[4] != "[" {
                 //         return Err(CommandError("Wrong type of arguments".to_string()));
                 //     }
+                // match self.prefix(commands){
+                //   Some(0.0)=>{flag = false;}
+                //   Some(1.0)=>{flag = true;}
+                //   Some(_)=>{}
+                //   None=>{return Err(CommandError("Wrong type of arguments".to_string()));}
+                // }
                 match self.prefix(commands) {
                     Some(r) => {
-                        if r == 0.0 {
-                            flag = false;
-                        } else {
-                            flag = true;
+                        match r {
+                            0.0 => flag = false,
+                            1.0 => flag = true,
+                            _ => {}
                         }
+
+                        // if r == 0 {
+                        //     flag = false;
+                        // } else {
+                        //     flag = true;
+                        // }
                     }
                     None => {
                         return Err(CommandError("Wrong type of arguments".to_string()));
                     }
                 }
                 if !flag {
-                    self.block = false;
+                    // self.block += 1;
+                } else {
+                    self.block -= 1;
                 }
                 Ok(0.0)
             }
             "WHILE" => {
-                // if commands.len() < 3 {
-                //     return Err(CommandError("Wrong number of arguments".to_string()));
-                // }
                 let mut flag = true;
-                // let arg = commands[1].to_string();
-                // if arg.eq("EQ") {
-                //     flag = true;
-                // } else if arg.eq("NE") {
-                //     flag = false;
-                // } else if arg.starts_with(":") {
-                //     let v = self.get_value(&arg);
-                //     match v {
-                //         Some(result) => {
-                //             if result == 0.0 {
-                //                 flag = false;
-                //             } else if result == 1.0 {
-                //                 flag = true;
-                //             }
-                //         }
-                //         None => {
-                //             return Err(CommandError("Variable not found".to_string()));
-                //         }
-                //     }
+                self.block += 1;
                 match self.prefix(commands) {
-                    Some(r) => {
-                        if r == 0.0 {
-                            flag = false;
-                        } else {
-                            flag = true;
+                    Some(r) => match r {
+                        0.0 => {
+                            // self.block -= 1;
+                            return Ok(0.0);
                         }
-                    }
+                        1.0 => {}
+                        _ => {}
+                    },
                     None => {
                         return Err(CommandError("Wrong type of arguments".to_string()));
                     }
@@ -298,61 +293,23 @@ impl<'a> LogoParser<'a> {
                 }
 
                 loop {
-                    // let first = self.get_value(commands[1]).expect("Null value");
-                    // if first != 1.0 {
-                    //     break;
-                    // }
                     let _ = self.parse_action_with_vec(&v);
-
+                    if self.block < 0 {
+                        self.block = 0;
+                    }
                     match self.prefix(commands) {
-                        Some(r) => {
-                            if r == 0.0 {
-                                break;
-                            }
-                        }
+                        Some(r) => match r {
+                            0.0 => break,
+
+                            _ => {}
+                        },
                         None => {
                             return Err(CommandError("Wrong type of arguments".to_string()));
                         }
                     }
                 }
-                if !flag {
-                    self.block = false;
-                }
-                // }
-                // else if commands.len() >= 5 {
-                //     let mut v: VecDeque<&str> = VecDeque::new();
+                self.block -= 1;
 
-                //     let mut semicolon = 1;
-                //     while semicolon > 0 {
-                //         let line = self
-                //             .lines
-                //             .as_mut()
-                //             .unwrap()
-                //             .next()
-                //             .expect("Error parsing while.");
-                //         if line.contains("[") {
-                //             semicolon += 1;
-                //         } else if line.contains("]") {
-                //             semicolon -= 1;
-                //         }
-                //         v.push_back(line);
-                //     }
-
-                //     loop {
-                //         let first = self.get_value(commands[2]).expect("Null value");
-                //         let second = self.get_value(commands[3]).expect("Null value");
-                //         if first != second {
-                //             break;
-                //         }
-                //         let _ = self.parse_action_with_vec(&v);
-                //     }
-                //     if !flag {
-                //         self.block = false;
-                //     }
-                // }
-                // else {
-                //     return Err(CommandError("Wrong type of arguments".to_string()));
-                // }
                 Ok(0.0)
             }
 
@@ -364,15 +321,17 @@ impl<'a> LogoParser<'a> {
 
     fn match_action(&mut self, part: &Vec<&str>) -> Result<(), ()> {
         if part[0] == "]" {
-            self.block = true;
+            self.block -= 1;
             return Ok(());
         }
-        if !self.block {
+        if self.block > 0 {
+            if part[0] == "WHILE" || part[0] == "IF" {
+                self.block += 1;
+            }
             return Ok(());
         }
         match part[0] {
             "//" => {}
-
             "PENUP" => {
                 self.pen_up = true;
                 match self.process_actions(&part) {
@@ -517,9 +476,6 @@ impl<'a> LogoParser<'a> {
     }
 
     fn draw(&mut self, val: f32, arg: &str) {
-        if self.pen_up {
-            return;
-        }
         match arg {
             "LEFT" => {
                 self.direction -= 90.0;
@@ -532,6 +488,12 @@ impl<'a> LogoParser<'a> {
                 self.direction += 180.0;
             }
             _ => {}
+        }
+
+        if self.pen_up {
+            (self.xcor, self.ycor) =
+                get_end_coordinates(self.xcor, self.ycor, self.direction as i32, val);
+            return;
         }
 
         (self.xcor, self.ycor) = self

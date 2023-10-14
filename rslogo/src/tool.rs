@@ -13,10 +13,26 @@ pub const QUOTES: char = '\"';
 
 #[derive(Debug)]
 pub struct CommandError(pub String);
-
+fn quantize(x: f32) -> f32 {
+    (x * 256.0).round() / 256.0
+}
 pub trait Tool {
     fn get_value(&self, name: &str) -> Option<f32>;
     fn prefix(&self, commands: &Vec<&str>) -> Option<f32>;
+
+    fn get_end_coordinates(x: f32, y: f32, direction: i32, length: f32) -> (f32, f32) {
+        let x = quantize(x);
+        let y = quantize(y);
+
+        // directions start at 0 degrees being straight up, and go clockwise
+        // we need to add 90 degrees to make 0 degrees straight right.
+        let direction_rad = ((direction as f32) - 90.0).to_radians();
+
+        let end_x = quantize(x + (direction_rad.cos() * length as f32));
+        let end_y = quantize(y + (direction_rad.sin() * length as f32));
+
+        (end_x, end_y)
+    }
 }
 
 impl Tool for LogoParser<'_> {
@@ -66,7 +82,7 @@ impl Tool for LogoParser<'_> {
 
         let mut result: f32 = 1.0;
         for cmd in commands.iter().rev() {
-         if cmd.starts_with("[")||cmd.starts_with("WHILE")||cmd.starts_with("IF") {
+            if cmd.starts_with("[") || cmd.starts_with("WHILE") || cmd.starts_with("IF") {
                 continue;
             }
             let v = self.get_value(&cmd);
