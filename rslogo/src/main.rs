@@ -1,15 +1,11 @@
-use clap::{parser, Parser};
+use clap::Parser;
 use std::{
     collections::{HashMap, VecDeque},
     fs::File,
-    io::{Lines, Read},
-    ops::{Deref, DerefMut},
-    path::PathBuf,
-    process::ExitCode,
+    io::Read,
 };
-use unsvg::{get_end_coordinates, Color, Image, COLORS};
+use unsvg::{get_end_coordinates, Image, COLORS};
 
-mod drawsvg;
 mod tool;
 
 use tool::*;
@@ -34,8 +30,6 @@ struct CommandError(String);
 
 #[derive(Default)]
 struct LogoParser<'a> {
-    width: u32,
-    height: u32,
     pen_up: bool,
     block: i32,
     xcor: f32,
@@ -50,8 +44,6 @@ struct LogoParser<'a> {
 impl<'a> LogoParser<'a> {
     fn new(c: &'a str, w: u32, h: u32, img: Option<&'a mut Image>) -> Self {
         LogoParser {
-            width: w,
-            height: h,
             pen_up: true,
             block: 0,
             xcor: w as f32 / 2.0,
@@ -117,10 +109,6 @@ impl<'a> LogoParser<'a> {
             }
             "FORWARD" | "BACK" | "RIGHT" | "LEFT" | "SETPENCOLOR" | "TURN" | "SETHEADING"
             | "SETX" | "SETY" => {
-                // if commands.len() != 2 {
-                //     return Err(CommandError("Wrong number of arguments".to_string()));
-                // }
-
                 if commands.len() > 2 {
                     let mut cmd: Vec<&str> = Vec::new();
                     for i in 1..commands.len() {
@@ -147,13 +135,9 @@ impl<'a> LogoParser<'a> {
                 }
             }
             "MAKE" => {
-                // if commands.len() != 3 {
-                //     return Err(CommandError("Wrong number of arguments".to_string()));
-                // } else
                 if !commands[1].starts_with(QUOTES) {
                     return Err(CommandError("Wrong type of arguments".to_string()));
                 } else {
-                    // let prefix = self.prefix(&commands[2..]);
                     let mut cmd: Vec<&str> = Vec::new();
                     for i in 2..commands.len() {
                         cmd.push(commands[i]);
@@ -176,11 +160,7 @@ impl<'a> LogoParser<'a> {
             "ADDASSIGN" => {
                 if commands.len() != 3 {
                     return Err(CommandError("Wrong number of arguments".to_string()));
-                }
-                // else if !commands[1].starts_with(QUOTES) {
-                //     return Err(CommandError("Wrong type of arguments".to_string()));
-                // }
-                else {
+                } else {
                     let name = &commands[1][1..commands[1].len()].to_string();
                     let odd_value = self.variables.get(name);
                     if odd_value.is_none() {
@@ -199,79 +179,28 @@ impl<'a> LogoParser<'a> {
                 }
             }
             "IF" => {
-                // if commands.len() < 5 {
-                //     return Err(CommandError("Wrong number of arguments".to_string()));
-                // }
                 self.block += 1;
-                let mut flag = true;
-                // let arg = commands[1].to_string();
-                // if arg.eq("EQ") {
-                //     flag = true;
-                // } else if arg.eq("NE") {
-                //     flag = false;
-                // } else {
-                //     return Err(CommandError("Wrong type of arguments".to_string()));
-                // }
 
-                // if commands.len() == 5 {
-                //     let first = self.get_value(commands[2]).expect("Null value");
-                //     let second = self.get_value(commands[3]).expect("Null value");
-                //     if first == second && !flag {
-                //         flag = false;
-                //     }
-                //     if first != second && flag {
-                //         flag = false;
-                //     }
-
-                //     if commands[4] != "[" {
-                //         return Err(CommandError("Wrong type of arguments".to_string()));
-                //     }
-                // match self.prefix(commands){
-                //   Some(0.0)=>{flag = false;}
-                //   Some(1.0)=>{flag = true;}
-                //   Some(_)=>{}
-                //   None=>{return Err(CommandError("Wrong type of arguments".to_string()));}
-                // }
-                match self.prefix(commands) {
-                    Some(r) => {
-                        match r {
-                            0.0 => flag = false,
-                            1.0 => flag = true,
-                            _ => {}
-                        }
-
-                        // if r == 0 {
-                        //     flag = false;
-                        // } else {
-                        //     flag = true;
-                        // }
-                    }
-                    None => {
-                        return Err(CommandError("Wrong type of arguments".to_string()));
-                    }
+                let res = self.prefix(commands);
+                if res.is_none() {
+                    return Err(CommandError("Wrong type of arguments".to_string()));
                 }
-                if !flag {
-                    // self.block += 1;
-                } else {
+                let r = res.unwrap();
+                if r == 1.0 {
                     self.block -= 1;
                 }
                 Ok(0.0)
             }
             "WHILE" => {
-                let mut flag = true;
                 self.block += 1;
-                match self.prefix(commands) {
-                    Some(r) => match r {
-                        0.0 => {
-                            // self.block -= 1;
-                            return Ok(0.0);
-                        }
-                        1.0 => {}
-                        _ => {}
-                    },
-                    None => {
-                        return Err(CommandError("Wrong type of arguments".to_string()));
-                    }
+
+                let res = self.prefix(commands);
+                if res.is_none() {
+                    return Err(CommandError("Wrong type of arguments".to_string()));
+                }
+                let r = res.unwrap();
+                if r == 0.0 {
+                    return Ok(0.0);
                 }
 
                 let mut v: VecDeque<&str> = VecDeque::new();
@@ -297,15 +226,13 @@ impl<'a> LogoParser<'a> {
                     if self.block < 0 {
                         self.block = 0;
                     }
-                    match self.prefix(commands) {
-                        Some(r) => match r {
-                            0.0 => break,
-
-                            _ => {}
-                        },
-                        None => {
-                            return Err(CommandError("Wrong type of arguments".to_string()));
-                        }
+                    let res = self.prefix(commands);
+                    if res.is_none() {
+                        return Err(CommandError("Wrong type of arguments".to_string()));
+                    }
+                    let r = res.unwrap();
+                    if r == 0.0 {
+                        break;
                     }
                 }
                 self.block -= 1;
@@ -353,10 +280,6 @@ impl<'a> LogoParser<'a> {
             "FORWARD" => match self.process_actions(&part) {
                 Ok(d) => {
                     self.draw(d, "FORWARD");
-                    // self.ycor -= d * self.direction.to_radians().sin();
-                    // (self.xcor, self.ycor) = img
-                    //     .draw_simple_line(self.xcor , self.ycor, self.direction, 100.0, COLORS[1])
-                    //     .expect("Error drawing picture");
                     println!("forward {}", d);
                 }
                 Err(e) => {
@@ -366,7 +289,6 @@ impl<'a> LogoParser<'a> {
             "BACK" => match self.process_actions(&part) {
                 Ok(d) => {
                     self.draw(d, "BACK");
-                    // self.ycor += d * self.direction.to_radians().sin();
                     println!("b {}", d);
                 }
                 Err(e) => {
@@ -376,7 +298,6 @@ impl<'a> LogoParser<'a> {
             "RIGHT" => match self.process_actions(&part) {
                 Ok(d) => {
                     self.draw(d, "RIGHT");
-                    // self.xcor += d * self.direction.to_radians().cos();
                     println!("r {}", d);
                 }
                 Err(e) => {
@@ -386,7 +307,6 @@ impl<'a> LogoParser<'a> {
             "LEFT" => match self.process_actions(&part) {
                 Ok(d) => {
                     self.draw(d, "LEFT");
-                    // self.xcor -= d * self.direction.to_radians().cos();
                     println!("left {}", d);
                 }
                 Err(e) => {
@@ -439,25 +359,25 @@ impl<'a> LogoParser<'a> {
                 }
             },
             "MAKE" => match self.process_actions(&part) {
-                Ok(d) => {}
+                Ok(_) => {}
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
             },
             "ADDASSIGN" => match self.process_actions(&part) {
-                Ok(d) => {}
+                Ok(_) => {}
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
             },
             "IF" => match self.process_actions(&part) {
-                Ok(d) => {}
+                Ok(_) => {}
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
             },
             "WHILE" => match self.process_actions(&part) {
-                Ok(d) => {}
+                Ok(_) => {}
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
@@ -528,10 +448,7 @@ fn main() -> Result<(), ()> {
 
     let mut logo_parser = LogoParser::new(&contents, width, height, Some(&mut image));
 
-    //  if let result =   logo_parser.parse_action(){
     logo_parser.parse_action()?;
-
-    //  }
 
     match image_path.extension().map(|s| s.to_str()).flatten() {
         Some("svg") => {

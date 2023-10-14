@@ -1,35 +1,29 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    ops::Deref,
-    string,
-};
-
-use unsvg::{Image, COLORS};
+use std::collections::VecDeque;
 
 use crate::LogoParser;
 
 pub const QUOTES: char = '\"';
-// pub const  tokens<&str> = vec!["AND", "OR", "GT", "LT", "EQ", "NE", "+", "-", "*", "/"];
 
 #[derive(Debug)]
 pub struct CommandError(pub String);
-fn quantize(x: f32) -> f32 {
-    (x * 256.0).round() / 256.0
-}
+
 pub trait Tool {
     fn get_value(&self, name: &str) -> Option<f32>;
     fn prefix(&self, commands: &Vec<&str>) -> Option<f32>;
 
+    fn quantize(x: f32) -> f32 {
+        (x * 256.0).round() / 256.0
+    }
     fn get_end_coordinates(x: f32, y: f32, direction: i32, length: f32) -> (f32, f32) {
-        let x = quantize(x);
-        let y = quantize(y);
+        let x = Self::quantize(x);
+        let y = Self::quantize(y);
 
         // directions start at 0 degrees being straight up, and go clockwise
         // we need to add 90 degrees to make 0 degrees straight right.
         let direction_rad = ((direction as f32) - 90.0).to_radians();
 
-        let end_x = quantize(x + (direction_rad.cos() * length as f32));
-        let end_y = quantize(y + (direction_rad.sin() * length as f32));
+        let end_x = Self::quantize(x + (direction_rad.cos() * length as f32));
+        let end_y = Self::quantize(y + (direction_rad.sin() * length as f32));
 
         (end_x, end_y)
     }
@@ -99,13 +93,6 @@ impl Tool for LogoParser<'_> {
                     }
                 }
             } else {
-                // if let Ok(val) = cmd.parse::<f32>() {
-                //     stack.push_back(val.to_string());
-                //     continue;
-                // } else if let Some(v) = self.variables.get(*cmd) {
-                //     stack.push_back(v.to_string());
-                //     continue;
-                // } else {
                 if stack.len() < 2 {
                     return None;
                 }
