@@ -121,37 +121,30 @@ impl<'a> LogoParser<'a> {
                 //     return Err(CommandError("Wrong number of arguments".to_string()));
                 // }
 
-                if commands.len()>2{
-                let mut cmd: Vec<&str> = Vec::new();
-                for i in 2..commands.len() {
-                    cmd.push(commands[i]);
-                }
-
-                match self.prefix(&cmd) {
-                    Some(result) => {
-                        return Ok(result);
+                if commands.len() > 2 {
+                    let mut cmd: Vec<&str> = Vec::new();
+                    for i in 1..commands.len() {
+                        cmd.push(commands[i]);
                     }
-                    None => {
-                        return Err(CommandError("Variable not found".to_string()));
+
+                    match self.prefix(&cmd) {
+                        Some(result) => {
+                            return Ok(result);
+                        }
+                        None => {
+                            return Err(CommandError("Variable not found".to_string()));
+                        }
+                    }
+                } else {
+                    match self.get_value(commands[1]) {
+                        Some(result) => {
+                            return Ok(result);
+                        }
+                        None => {
+                            return Err(CommandError("Variable not found".to_string()));
+                        }
                     }
                 }
-              }else {
-
-
-                match self.get_value(commands[1]) {
-                  Some(result) => {
-                      return Ok(result);
-                  }
-                  None => {
-                      return Err(CommandError("Variable not found".to_string()));
-                  }
-              }
-
-
-              }
-
-
-
             }
             "MAKE" => {
                 // if commands.len() != 3 {
