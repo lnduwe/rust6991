@@ -5,6 +5,7 @@ use std::{
     io::{Lines, Read},
     ops::{Deref, DerefMut},
     path::PathBuf,
+    process::ExitCode,
 };
 use unsvg::{Color, Image, COLORS};
 
@@ -29,7 +30,6 @@ struct Args {
     width: u32,
 }
 
-
 struct CommandError(String);
 
 #[derive(Default)]
@@ -41,7 +41,7 @@ struct LogoParser<'a> {
     xcor: f32,
     ycor: f32,
     direction: f32,
-    pen_color: usize,
+    pen_color: f32,
     variables: HashMap<String, f32>,
     line_number: usize,
     image: Option<&'a mut Image>,
@@ -57,7 +57,7 @@ impl<'a> LogoParser<'a> {
             xcor: w as f32 / 2.0,
             ycor: h as f32 / 2.0,
             direction: 0.0,
-            pen_color: 8,
+            pen_color: 0.0,
             variables: HashMap::new(),
             line_number: 1,
             lines: Some(c.lines()),
@@ -117,10 +117,17 @@ impl<'a> LogoParser<'a> {
             }
             "FORWARD" | "BACK" | "RIGHT" | "LEFT" | "SETPENCOLOR" | "TURN" | "SETHEADING"
             | "SETX" | "SETY" => {
-                if commands.len() != 2 {
-                    return Err(CommandError("Wrong number of arguments".to_string()));
+                // if commands.len() != 2 {
+                //     return Err(CommandError("Wrong number of arguments".to_string()));
+                // }
+
+                if commands.len()>2{
+                let mut cmd: Vec<&str> = Vec::new();
+                for i in 2..commands.len() {
+                    cmd.push(commands[i]);
                 }
-                match self.get_value(commands[1]) {
+
+                match self.prefix(&cmd) {
                     Some(result) => {
                         return Ok(result);
                     }
@@ -128,21 +135,39 @@ impl<'a> LogoParser<'a> {
                         return Err(CommandError("Variable not found".to_string()));
                     }
                 }
+              }else {
+
+
+                match self.get_value(commands[1]) {
+                  Some(result) => {
+                      return Ok(result);
+                  }
+                  None => {
+                      return Err(CommandError("Variable not found".to_string()));
+                  }
+              }
+
+
+              }
+
+
+
             }
             "MAKE" => {
-                if commands.len() != 3 {
-                    return Err(CommandError("Wrong number of arguments".to_string()));
-                } else if !commands[1].starts_with(QUOTES)
-                    || !commands[2].starts_with(QUOTES)
-                    || commands[1].len() < 2
-                {
+                // if commands.len() != 3 {
+                //     return Err(CommandError("Wrong number of arguments".to_string()));
+                // } else
+                if !commands[1].starts_with(QUOTES) {
                     return Err(CommandError("Wrong type of arguments".to_string()));
                 } else {
+                    // let prefix = self.prefix(&commands[2..]);
+                    let mut cmd: Vec<&str> = Vec::new();
+                    for i in 2..commands.len() {
+                        cmd.push(commands[i]);
+                    }
+                    let value = self.prefix(&cmd);
+
                     let name = commands[1][1..commands[1].len()].to_string();
-
-                    let v = commands[2];
-
-                    let value = self.get_value(v);
 
                     match value {
                         Some(result) => {
@@ -158,10 +183,10 @@ impl<'a> LogoParser<'a> {
             "ADDASSIGN" => {
                 if commands.len() != 3 {
                     return Err(CommandError("Wrong number of arguments".to_string()));
-                } 
+                }
                 // else if !commands[1].starts_with(QUOTES) {
                 //     return Err(CommandError("Wrong type of arguments".to_string()));
-                // } 
+                // }
                 else {
                     let name = &commands[1][1..commands[1].len()].to_string();
                     let odd_value = self.variables.get(name);
@@ -181,127 +206,160 @@ impl<'a> LogoParser<'a> {
                 }
             }
             "IF" => {
-                if commands.len() < 5 {
-                    return Err(CommandError("Wrong number of arguments".to_string()));
-                }
+                // if commands.len() < 5 {
+                //     return Err(CommandError("Wrong number of arguments".to_string()));
+                // }
                 let mut flag = true;
-                let arg = commands[1].to_string();
-                if arg.eq("EQ") {
-                    flag = true;
-                } else if arg.eq("NE") {
-                    flag = false;
-                } else {
-                    return Err(CommandError("Wrong type of arguments".to_string()));
-                }
+                // let arg = commands[1].to_string();
+                // if arg.eq("EQ") {
+                //     flag = true;
+                // } else if arg.eq("NE") {
+                //     flag = false;
+                // } else {
+                //     return Err(CommandError("Wrong type of arguments".to_string()));
+                // }
 
-                if commands.len() == 5 {
-                    let first = self.get_value(commands[2]).expect("Null value");
-                    let second = self.get_value(commands[3]).expect("Null value");
-                    if first == second && !flag {
-                        flag = false;
-                    }
-                    if first != second && flag {
-                        flag = false;
-                    }
+                // if commands.len() == 5 {
+                //     let first = self.get_value(commands[2]).expect("Null value");
+                //     let second = self.get_value(commands[3]).expect("Null value");
+                //     if first == second && !flag {
+                //         flag = false;
+                //     }
+                //     if first != second && flag {
+                //         flag = false;
+                //     }
 
-                    if commands[4] != "[" {
+                //     if commands[4] != "[" {
+                //         return Err(CommandError("Wrong type of arguments".to_string()));
+                //     }
+                match self.prefix(commands) {
+                    Some(r) => {
+                        if r == 0.0 {
+                            flag = false;
+                        } else {
+                            flag = true;
+                        }
+                    }
+                    None => {
                         return Err(CommandError("Wrong type of arguments".to_string()));
                     }
-
-                    if !flag {
-                        self.block = false;
-                    }
-                    Ok(0.0)
-                } else {
-                    Ok(0.0)
                 }
+                if !flag {
+                    self.block = false;
+                }
+                Ok(0.0)
             }
             "WHILE" => {
                 // if commands.len() < 3 {
                 //     return Err(CommandError("Wrong number of arguments".to_string()));
                 // }
                 let mut flag = true;
-                let arg = commands[1].to_string();
-                if arg.eq("EQ") {
-                    flag = true;
-                } else if arg.eq("NE") {
-                    flag = false;
-                } else if arg.starts_with(":") {
-                    let v = self.get_value(&arg);
-                    match v {
-                        Some(result) => {
-                            if result == 0.0 {
-                                flag = false;
-                            } else if result == 1.0 {
-                                flag = true;
+                // let arg = commands[1].to_string();
+                // if arg.eq("EQ") {
+                //     flag = true;
+                // } else if arg.eq("NE") {
+                //     flag = false;
+                // } else if arg.starts_with(":") {
+                //     let v = self.get_value(&arg);
+                //     match v {
+                //         Some(result) => {
+                //             if result == 0.0 {
+                //                 flag = false;
+                //             } else if result == 1.0 {
+                //                 flag = true;
+                //             }
+                //         }
+                //         None => {
+                //             return Err(CommandError("Variable not found".to_string()));
+                //         }
+                //     }
+                match self.prefix(commands) {
+                    Some(r) => {
+                        if r == 0.0 {
+                            flag = false;
+                        } else {
+                            flag = true;
+                        }
+                    }
+                    None => {
+                        return Err(CommandError("Wrong type of arguments".to_string()));
+                    }
+                }
+
+                let mut v: VecDeque<&str> = VecDeque::new();
+
+                let mut semicolon = 1;
+                while semicolon > 0 {
+                    let line = self
+                        .lines
+                        .as_mut()
+                        .unwrap()
+                        .next()
+                        .expect("Error parsing while.");
+                    if line.contains("[") {
+                        semicolon += 1;
+                    } else if line.contains("]") {
+                        semicolon -= 1;
+                    }
+                    v.push_back(line);
+                }
+
+                loop {
+                    // let first = self.get_value(commands[1]).expect("Null value");
+                    // if first != 1.0 {
+                    //     break;
+                    // }
+                    let _ = self.parse_action_with_vec(&v);
+
+                    match self.prefix(commands) {
+                        Some(r) => {
+                            if r == 0.0 {
+                                break;
                             }
                         }
                         None => {
-                            return Err(CommandError("Variable not found".to_string()));
+                            return Err(CommandError("Wrong type of arguments".to_string()));
                         }
                     }
-
-                    let mut v: VecDeque<&str> = VecDeque::new();
-
-                    let mut semicolon = 1;
-                    while semicolon > 0 {
-                        let line = self
-                            .lines
-                            .as_mut()
-                            .unwrap()
-                            .next()
-                            .expect("Error parsing while.");
-                        if line.contains("[") {
-                            semicolon += 1;
-                        } else if line.contains("]") {
-                            semicolon -= 1;
-                        }
-                        v.push_back(line);
-                    }
-
-                    loop {
-                        let first = self.get_value(commands[1]).expect("Null value");
-                        if first != 1.0 {
-                            break;
-                        }
-                        let _ = self.parse_action_with_vec(&v);
-                    }
-                    if !flag {
-                        self.block = false;
-                    }
-                } else if commands.len() >= 5 {
-                    let mut v: VecDeque<&str> = VecDeque::new();
-
-                    let mut semicolon = 1;
-                    while semicolon > 0 {
-                        let line = self
-                            .lines
-                            .as_mut()
-                            .unwrap()
-                            .next()
-                            .expect("Error parsing while.");
-                        if line.contains("[") {
-                            semicolon += 1;
-                        } else if line.contains("]") {
-                            semicolon -= 1;
-                        }
-                        v.push_back(line);
-                    }
-
-                    loop {
-                        let first = self.get_value(commands[2]).expect("Null value");
-                        let second = self.get_value(commands[3]).expect("Null value");
-                        if first != second {
-                            break;
-                        }
-                        let _ = self.parse_action_with_vec(&v);
-                    }
-                    if !flag {
-                        self.block = false;
-                    }
-                } else {
-                    return Err(CommandError("Wrong type of arguments".to_string()));
                 }
+                if !flag {
+                    self.block = false;
+                }
+                // }
+                // else if commands.len() >= 5 {
+                //     let mut v: VecDeque<&str> = VecDeque::new();
+
+                //     let mut semicolon = 1;
+                //     while semicolon > 0 {
+                //         let line = self
+                //             .lines
+                //             .as_mut()
+                //             .unwrap()
+                //             .next()
+                //             .expect("Error parsing while.");
+                //         if line.contains("[") {
+                //             semicolon += 1;
+                //         } else if line.contains("]") {
+                //             semicolon -= 1;
+                //         }
+                //         v.push_back(line);
+                //     }
+
+                //     loop {
+                //         let first = self.get_value(commands[2]).expect("Null value");
+                //         let second = self.get_value(commands[3]).expect("Null value");
+                //         if first != second {
+                //             break;
+                //         }
+                //         let _ = self.parse_action_with_vec(&v);
+                //     }
+                //     if !flag {
+                //         self.block = false;
+                //     }
+                // }
+                // else {
+                //     return Err(CommandError("Wrong type of arguments".to_string()));
+                // }
                 Ok(0.0)
             }
 
@@ -327,7 +385,7 @@ impl<'a> LogoParser<'a> {
                 match self.process_actions(&part) {
                     Ok(_) => {}
                     Err(e) => {
-                        return self.print_log(&e.0);
+                        return self.log_error(&e.0);
                     }
                 }
             }
@@ -336,13 +394,13 @@ impl<'a> LogoParser<'a> {
                 match self.process_actions(&part) {
                     Ok(_) => {}
                     Err(e) => {
-                        return self.print_log(&e.0);
+                        return self.log_error(&e.0);
                     }
                 }
             }
             "FORWARD" => match self.process_actions(&part) {
                 Ok(d) => {
-                  self.draw(d, "FORWARD");
+                    self.draw(d, "FORWARD");
                     // self.ycor -= d * self.direction.to_radians().sin();
                     // (self.xcor, self.ycor) = img
                     //     .draw_simple_line(self.xcor , self.ycor, self.direction, 100.0, COLORS[1])
@@ -350,51 +408,51 @@ impl<'a> LogoParser<'a> {
                     println!("forward {}", d);
                 }
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "BACK" => match self.process_actions(&part) {
                 Ok(d) => {
-                  self.draw(d, "BACK");
+                    self.draw(d, "BACK");
                     // self.ycor += d * self.direction.to_radians().sin();
                     println!("b {}", d);
                 }
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "RIGHT" => match self.process_actions(&part) {
                 Ok(d) => {
-                  self.draw(d, "RIGHT");
+                    self.draw(d, "RIGHT");
                     // self.xcor += d * self.direction.to_radians().cos();
                     println!("r {}", d);
                 }
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "LEFT" => match self.process_actions(&part) {
                 Ok(d) => {
-                  self.draw(d, "LEFT");
+                    self.draw(d, "LEFT");
                     // self.xcor -= d * self.direction.to_radians().cos();
                     println!("left {}", d);
                 }
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
 
             "SETPENCOLOR" => match self.process_actions(&part) {
                 Ok(d) => {
-                    if d >= 0.0 && d <= 16.0 {
-                        self.pen_color = d as usize;
+                    if d >= 0.0 {
+                        self.pen_color = d;
                     } else {
-                        return self.print_log("Wrong color");
+                        return self.log_error("Wrong color");
                     }
                     println!("COLOR {}", self.pen_color);
                 }
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "SETHEADING" => match self.process_actions(&part) {
@@ -403,54 +461,53 @@ impl<'a> LogoParser<'a> {
                     println!("DIR {}", self.direction);
                 }
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "SETX" => match self.process_actions(&part) {
                 Ok(d) => self.xcor = d,
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "SETY" => match self.process_actions(&part) {
                 Ok(d) => self.ycor = d,
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "TURN" => match self.process_actions(&part) {
                 Ok(d) => {
                     self.direction += d;
-                    self.direction = self.direction.abs() % 360.0;
                     println!("DIR {}", self.direction);
                 }
 
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "MAKE" => match self.process_actions(&part) {
                 Ok(d) => {}
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "ADDASSIGN" => match self.process_actions(&part) {
                 Ok(d) => {}
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "IF" => match self.process_actions(&part) {
                 Ok(d) => {}
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
             "WHILE" => match self.process_actions(&part) {
                 Ok(d) => {}
                 Err(e) => {
-                    return self.print_log(&e.0);
+                    return self.log_error(&e.0);
                 }
             },
 
@@ -461,9 +518,9 @@ impl<'a> LogoParser<'a> {
         Ok(())
     }
 
-    fn print_log(&self, error: &str) -> Result<(), ()> {
+    fn log_error(&self, error: &str) -> Result<(), ()> {
         println!("Error: {}, line: {}", error, self.line_number);
-        Err(())
+        std::process::exit(1);
     }
 
     fn draw(&mut self, val: f32, arg: &str) {
@@ -493,7 +550,7 @@ impl<'a> LogoParser<'a> {
                 self.ycor,
                 self.direction as i32,
                 val,
-                COLORS[self.pen_color],
+                COLORS[self.pen_color as usize % 16],
             )
             .expect("Error drawing picture");
     }

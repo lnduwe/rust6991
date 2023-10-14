@@ -66,6 +66,9 @@ impl Tool for LogoParser<'_> {
 
         let mut result: f32 = 1.0;
         for cmd in commands.iter().rev() {
+         if cmd.starts_with("[")||cmd.starts_with("WHILE")||cmd.starts_with("IF") {
+                continue;
+            }
             let v = self.get_value(&cmd);
             if v.is_some() || cmd.starts_with(":") {
                 // let val = v.expect("Variable not found");
@@ -125,12 +128,12 @@ impl Tool for LogoParser<'_> {
                     "-" => result = first - second,
                     "*" => result = first * second,
                     "/" => result = first / second,
+                    "IF" | "WHILE" => return Some(result),
                     _ => return None,
                 };
                 stack.push_back(result.to_string());
             }
         }
-
         Some(result)
     }
 }
@@ -162,4 +165,8 @@ fn test_prefix() {
     assert_eq!(parser.prefix(&vec!["GT", "\"1", "\"2"]), Some(0.0));
     assert_eq!(parser.prefix(&vec!["UNKNOWN", "\"2", "\"1"]), None);
     assert_eq!(parser.prefix(&vec!["OR", "AND", "\"1", "\"2"]), None);
+    assert_eq!(
+        parser.prefix(&vec!["EQ", "\"7", "+", "\"2", "\"5"]),
+        Some(1.0)
+    );
 }
