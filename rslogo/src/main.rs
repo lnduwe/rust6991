@@ -27,7 +27,11 @@ struct Args {
 }
 
 struct CommandError(String);
+// struct procedures{
+//     name: String,
+//     commands: VecDeque<String>,
 
+// }
 #[derive(Default)]
 struct LogoParser<'a> {
     pen_up: bool,
@@ -37,6 +41,7 @@ struct LogoParser<'a> {
     direction: f32,
     pen_color: f32,
     variables: HashMap<String, f32>,
+    procedures: HashMap<String, VecDeque<String>>,
     line_number: usize,
     image: Option<&'a mut Image>,
     lines: Option<std::str::Lines<'a>>,
@@ -49,8 +54,9 @@ impl<'a> LogoParser<'a> {
             xcor: w as f32 / 2.0,
             ycor: h as f32 / 2.0,
             direction: 0.0,
-            pen_color: 0.0,
+            pen_color: 1.0,
             variables: HashMap::new(),
+            procedures: HashMap::new(),
             line_number: 1,
             lines: Some(c.lines()),
             image: img,
@@ -78,9 +84,9 @@ impl<'a> LogoParser<'a> {
         Ok(())
     }
 
-    fn parse_action_with_vec(&mut self, commands: &VecDeque<&str>) -> Result<(), ()> {
-        let mut vec = commands.clone();
-        while let Some(line) = vec.pop_front() {
+    fn parse_action_with_vec(&mut self, commands: &Vec<&str>) -> Result<(), ()> {
+        for i in 0..commands.len(){
+            let line = commands[i];
             if line.len() == 0 {
                 continue;
             }
@@ -98,10 +104,10 @@ impl<'a> LogoParser<'a> {
     }
 
     //draw pictures and return value
-    fn process_actions(&mut self, commands: &Vec<&str>) -> Result<f32, CommandError> {
-        match commands[0] {
+    fn process_actions(&mut self, parts: &Vec<&str>) -> Result<f32, CommandError> {
+        match parts[0] {
             "PENUP" | "PENDOWN" => {
-                if commands.len() > 1 {
+                if parts.len() > 1 {
                     return Err(CommandError("Wrong number of arguments".to_string()));
                 } else {
                     return Ok(0.0);
@@ -109,10 +115,10 @@ impl<'a> LogoParser<'a> {
             }
             "FORWARD" | "BACK" | "RIGHT" | "LEFT" | "SETPENCOLOR" | "TURN" | "SETHEADING"
             | "SETX" | "SETY" => {
-                if commands.len() > 2 {
+                if parts.len() > 2 {
                     let mut cmd: Vec<&str> = Vec::new();
-                    for i in 1..commands.len() {
-                        cmd.push(commands[i]);
+                    for i in 1..parts.len() {
+                        cmd.push(parts[i]);
                     }
 
                     match self.prefix(&cmd) {
@@ -124,7 +130,7 @@ impl<'a> LogoParser<'a> {
                         }
                     }
                 } else {
-                    match self.get_value(commands[1]) {
+                    match self.get_value(parts[1]) {
                         Some(result) => {
                             return Ok(result);
                         }
@@ -135,16 +141,16 @@ impl<'a> LogoParser<'a> {
                 }
             }
             "MAKE" => {
-                if !commands[1].starts_with(QUOTES) {
+                if !parts[1].starts_with(QUOTES) {
                     return Err(CommandError("Wrong type of arguments".to_string()));
                 } else {
                     let mut cmd: Vec<&str> = Vec::new();
-                    for i in 2..commands.len() {
-                        cmd.push(commands[i]);
+                    for i in 2..parts.len() {
+                        cmd.push(parts[i]);
                     }
                     let value = self.prefix(&cmd);
 
-                    let name = commands[1][1..commands[1].len()].to_string();
+                    let name = parts[1][1..parts[1].len()].to_string();
 
                     match value {
                         Some(result) => {
@@ -158,15 +164,15 @@ impl<'a> LogoParser<'a> {
                 }
             }
             "ADDASSIGN" => {
-                if commands.len() != 3 {
+                if parts.len() != 3 {
                     return Err(CommandError("Wrong number of arguments".to_string()));
                 } else {
-                    let name = &commands[1][1..commands[1].len()].to_string();
+                    let name = &parts[1][1..parts[1].len()].to_string();
                     let odd_value = self.variables.get(name);
                     if odd_value.is_none() {
                         return Err(CommandError("Variable not found".to_string()));
                     }
-                    let name_2 = &commands[2];
+                    let name_2 = &parts[2];
                     let v = self.get_value(name_2);
                     match v {
                         Some(result) => {
@@ -181,7 +187,7 @@ impl<'a> LogoParser<'a> {
             "IF" => {
                 self.block += 1;
 
-                let res = self.prefix(commands);
+                let res = self.prefix(parts);
                 if res.is_none() {
                     return Err(CommandError("Wrong type of arguments".to_string()));
                 }
@@ -194,7 +200,7 @@ impl<'a> LogoParser<'a> {
             "WHILE" => {
                 self.block += 1;
 
-                let res = self.prefix(commands);
+                let res = self.prefix(parts);
                 if res.is_none() {
                     return Err(CommandError("Wrong type of arguments".to_string()));
                 }
@@ -203,7 +209,7 @@ impl<'a> LogoParser<'a> {
                     return Ok(0.0);
                 }
 
-                let mut v: VecDeque<&str> = VecDeque::new();
+                let mut v: Vec<&str> = Vec::new();
 
                 let mut semicolon = 1;
                 while semicolon > 0 {
@@ -218,7 +224,7 @@ impl<'a> LogoParser<'a> {
                     } else if line.contains("]") {
                         semicolon -= 1;
                     }
-                    v.push_back(line);
+                    v.push(line);
                 }
 
                 loop {
@@ -226,7 +232,7 @@ impl<'a> LogoParser<'a> {
                     if self.block < 0 {
                         self.block = 0;
                     }
-                    let res = self.prefix(commands);
+                    let res = self.prefix(parts);
                     if res.is_none() {
                         return Err(CommandError("Wrong type of arguments".to_string()));
                     }
@@ -239,6 +245,26 @@ impl<'a> LogoParser<'a> {
 
                 Ok(0.0)
             }
+            "T0"=>{
+               
+              let mut v: VecDeque<String> = VecDeque::new();
+              loop {
+                  let line = self
+                      .lines
+                      .as_mut()
+                      .unwrap()
+                      .next()
+                      .expect("Error parsing while.");
+                  if line.contains("END") {
+                     break;
+                  }
+                  v.push_back(line.to_string());
+              }
+              self.procedures.insert(parts[1].to_string(), v);
+
+              Ok(0.0)
+            }
+
 
             _ => {
                 return Err(CommandError("Wrong type of command".to_string()));
@@ -246,24 +272,24 @@ impl<'a> LogoParser<'a> {
         }
     }
 
-    fn match_action(&mut self, part: &Vec<&str>) -> Result<(), ()> {
-        if part[0] == "]" {
+    fn match_action(&mut self, parts: &Vec<&str>) -> Result<(), ()> {
+        if parts[0] == "]" {
             if self.block > 0 {
                 self.block -= 1;
             }
             return Ok(());
         }
         if self.block > 0 {
-            if part[0] == "WHILE" || part[0] == "IF" {
+            if parts[0] == "WHILE" || parts[0] == "IF" {
                 self.block += 1;
             }
             return Ok(());
         }
-        match part[0] {
+        match parts[0] {
             "//" => {}
             "PENUP" => {
                 self.pen_up = true;
-                match self.process_actions(&part) {
+                match self.process_actions(&parts) {
                     Ok(_) => {}
                     Err(e) => {
                         return self.log_error(&e.0);
@@ -272,14 +298,14 @@ impl<'a> LogoParser<'a> {
             }
             "PENDOWN" => {
                 self.pen_up = false;
-                match self.process_actions(&part) {
+                match self.process_actions(&parts) {
                     Ok(_) => {}
                     Err(e) => {
                         return self.log_error(&e.0);
                     }
                 }
             }
-            "FORWARD" => match self.process_actions(&part) {
+            "FORWARD" => match self.process_actions(&parts) {
                 Ok(d) => {
                     self.draw(d, "FORWARD");
                     println!("forward {}", d);
@@ -288,7 +314,7 @@ impl<'a> LogoParser<'a> {
                     return self.log_error(&e.0);
                 }
             },
-            "BACK" => match self.process_actions(&part) {
+            "BACK" => match self.process_actions(&parts) {
                 Ok(d) => {
                     self.draw(d, "BACK");
                     println!("b {}", d);
@@ -297,7 +323,7 @@ impl<'a> LogoParser<'a> {
                     return self.log_error(&e.0);
                 }
             },
-            "RIGHT" => match self.process_actions(&part) {
+            "RIGHT" => match self.process_actions(&parts) {
                 Ok(d) => {
                     self.draw(d, "RIGHT");
                     println!("r {}", d);
@@ -306,7 +332,7 @@ impl<'a> LogoParser<'a> {
                     return self.log_error(&e.0);
                 }
             },
-            "LEFT" => match self.process_actions(&part) {
+            "LEFT" => match self.process_actions(&parts) {
                 Ok(d) => {
                     self.draw(d, "LEFT");
                     println!("left {}", d);
@@ -316,7 +342,7 @@ impl<'a> LogoParser<'a> {
                 }
             },
 
-            "SETPENCOLOR" => match self.process_actions(&part) {
+            "SETPENCOLOR" => match self.process_actions(&parts) {
                 Ok(d) => {
                     if d >= 0.0 {
                         self.pen_color = d;
@@ -329,7 +355,7 @@ impl<'a> LogoParser<'a> {
                     return self.log_error(&e.0);
                 }
             },
-            "SETHEADING" => match self.process_actions(&part) {
+            "SETHEADING" => match self.process_actions(&parts) {
                 Ok(d) => {
                     self.direction = d;
                     println!("DIR {}", self.direction);
@@ -338,19 +364,19 @@ impl<'a> LogoParser<'a> {
                     return self.log_error(&e.0);
                 }
             },
-            "SETX" => match self.process_actions(&part) {
+            "SETX" => match self.process_actions(&parts) {
                 Ok(d) => self.xcor = d,
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
             },
-            "SETY" => match self.process_actions(&part) {
+            "SETY" => match self.process_actions(&parts) {
                 Ok(d) => self.ycor = d,
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
             },
-            "TURN" => match self.process_actions(&part) {
+            "TURN" => match self.process_actions(&parts) {
                 Ok(d) => {
                     self.direction += d;
                     println!("DIR {}", self.direction);
@@ -360,30 +386,36 @@ impl<'a> LogoParser<'a> {
                     return self.log_error(&e.0);
                 }
             },
-            "MAKE" => match self.process_actions(&part) {
+            "MAKE" => match self.process_actions(&parts) {
                 Ok(_) => {}
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
             },
-            "ADDASSIGN" => match self.process_actions(&part) {
+            "ADDASSIGN" => match self.process_actions(&parts) {
                 Ok(_) => {}
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
             },
-            "IF" => match self.process_actions(&part) {
+            "IF" => match self.process_actions(&parts) {
                 Ok(_) => {}
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
             },
-            "WHILE" => match self.process_actions(&part) {
+            "WHILE" => match self.process_actions(&parts) {
                 Ok(_) => {}
                 Err(e) => {
                     return self.log_error(&e.0);
                 }
             },
+            "TO"=> match self.process_actions(&parts) {
+              Ok(_) => {}
+              Err(e) => {
+                  return self.log_error(&e.0);
+              }
+            }  
 
             _ => {
                 println!("Wrong type of command on line {}", self.line_number);

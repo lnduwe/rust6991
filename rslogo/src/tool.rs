@@ -81,7 +81,6 @@ impl Tool for LogoParser<'_> {
             }
             let v = self.get_value(&cmd);
             if v.is_some() || cmd.starts_with(":") {
-                // let val = v.expect("Variable not found");
                 match v {
                     Some(val) => {
                         result = val;
@@ -150,16 +149,13 @@ fn test_get_value() {
     assert_eq!(parser.get_value("XCOR"), Some(25.0));
     assert_eq!(parser.get_value("YCOR"), Some(25.0));
     assert_eq!(parser.get_value("HEADING"), Some(0.0));
-    assert_eq!(parser.get_value("COLOR"), Some(8.0));
+    assert_eq!(parser.get_value("COLOR"), Some(1.0));
     assert_eq!(parser.get_value("UNKNOWN"), None);
 }
 
 #[test]
 fn test_prefix() {
     let parser = LogoParser::new("xxx", 50, 50, None);
-    // let a = parser.prefix(&vec!["1"]);
-
-    // println!("a = {}", a.unwrap());
     assert_eq!(parser.prefix(&vec!["\"1"]), Some(1.0));
     assert_eq!(parser.prefix(&vec!["\"3.14"]), Some(3.14));
     assert_eq!(parser.prefix(&vec![":foo"]), None);
