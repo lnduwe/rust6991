@@ -1,9 +1,5 @@
 use clap::Parser;
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::Read,
-};
+use std::{collections::HashMap, fs::File, io::Read};
 use unsvg::{get_end_coordinates, Image, COLORS};
 
 mod tool;
@@ -69,6 +65,17 @@ impl<'a> LogoParser<'a> {
                 self.line_number += 1;
                 continue;
             }
+
+            // if self.block > 0 {
+            //     if line.contains("[") {
+            //         self.block += 1;
+            //         continue;
+            //     }
+            //     if line.contains("]") {
+            //         self.block -= 1;
+            //     }
+            //     continue;
+            // }
 
             let parts = &line.split_whitespace().collect();
 
@@ -242,10 +249,10 @@ impl<'a> LogoParser<'a> {
 
                 Ok(0.0)
             }
-            "T0" => {
+            "TO" => {
                 let mut args: Vec<String> = Vec::new();
-                for i in 1..parts.len() {
-                    args.push(parts[i].to_string());
+                for i in 2..parts.len() {
+                    args.push(parts[i][1..].to_string());
                 }
                 let mut cmd: Vec<String> = Vec::new();
 
@@ -255,7 +262,7 @@ impl<'a> LogoParser<'a> {
                         .as_mut()
                         .unwrap()
                         .next()
-                        .expect("Error parsing while.");
+                        .expect("Error parsing To.");
                     if line.contains("END") {
                         break;
                     }
@@ -424,28 +431,45 @@ impl<'a> LogoParser<'a> {
             },
 
             _ => {
-              let pro = self.procedures.get(parts[0]);
-              if pro.is_none(){
-                println!("Wrong type of command on line {}", self.line_number);
-              }else{
-                let mut args: Vec<String> = Vec::new();
-                for i in 1..parts.len() {
-                    args.push(parts[i].to_string());
-                }
-                let mut cmd: Vec<String> = Vec::new();
-                let pros = pro.unwrap();
-                for i in 0..pros.commands.len() {
-                    let mut line = pros.commands[i].clone();
-                    for j in 0..pros.args.len() {
-                        line = line.replace(&pros.args[j], &args[j]);
+                let pro = self.procedures.get(parts[0]);
+                if pro.is_none() {
+                    let _ = self.log_error("No procedures found");
+                } else {
+                    let proced = pro.unwrap();
+                    let arg = proced.args.clone();
+
+                    let len = arg.len();
+                    // if len != parts.len() - 1 {
+                    //     let _ = self.log_error("Wrong number of arguments");
+                    // }
+                    let mut part: Vec<&str> = Vec::new();
+                    for i in 1..parts.len() {
+                        part.push(parts[i]);
                     }
-                    cmd.push(line);
+                    for i in 0..len {
+                        match self.prefix(&part) {
+                            Some(result) => {
+                                self.variables.insert(arg[i].to_string(), result);
+                            }
+                            None => {
+                                let _ = self.log_error("Error parsing procedure");
+                            }
+                        }
+                    }
+                    let cmd = proced.commands.clone();
+                    self.parse_action_with_vec(&cmd)?;
+
+                    for i in 0..len {
+                        // match self.get_value(parts[i + 1]) {
+                        //     Some(_) => {
+                        self.variables.remove(arg[i].as_str());
+                        // }
+                        // None => {
+                        //     let _ = self.log_error("Error parsing procedure");
+                        // }
+                        // }
+                    }
                 }
-                let res = self.parse_action_with_vec(&cmd);
-                if res.is_err() {
-                    return res;
-                }
-              }
             }
         }
         Ok(())
