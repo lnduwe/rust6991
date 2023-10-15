@@ -136,6 +136,9 @@ impl Tool for LogoParser<'_> {
                 stack.push_back(result.to_string());
             }
         }
+        if stack.len() > 0 {
+            return None;
+        }
         Some(result)
     }
 }

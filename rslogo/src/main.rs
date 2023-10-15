@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::{collections::HashMap, fs::File, io::Read};
+use std::{collections::HashMap, f32::consts::E, fs::File, io::Read};
 use unsvg::{get_end_coordinates, Image, COLORS};
 
 mod tool;
@@ -66,25 +66,8 @@ impl<'a> LogoParser<'a> {
                 continue;
             }
 
-            // if self.block > 0 {
-            //     if line.contains("[") {
-            //         self.block += 1;
-            //         continue;
-            //     }
-            //     if line.contains("]") {
-            //         self.block -= 1;
-            //     }
-            //     continue;
-            // }
-
             let parts = &line.split_whitespace().collect();
-
-            let res = self.match_action (parts,None);
-
-            if res.is_err() {
-                return res;
-            }
-
+            self.match_action(parts, None)?;
             self.line_number += 1;
         }
         Ok(())
@@ -98,7 +81,7 @@ impl<'a> LogoParser<'a> {
             }
             let parts = &line.split_whitespace().collect();
 
-            let res = self.match_action(parts,None);
+            let res = self.match_action(parts, None);
 
             if res.is_err() {
                 return res;
@@ -119,6 +102,9 @@ impl<'a> LogoParser<'a> {
             }
             "FORWARD" | "BACK" | "RIGHT" | "LEFT" | "SETPENCOLOR" | "TURN" | "SETHEADING"
             | "SETX" | "SETY" => {
+                if parts.len() < 2 {
+                    return Err(CommandError("Wrong number of arguments".to_string()));
+                }
                 if parts.len() > 2 {
                     let mut cmd: Vec<&str> = Vec::new();
                     for i in 1..parts.len() {
@@ -217,11 +203,7 @@ impl<'a> LogoParser<'a> {
 
                 let mut semicolon = 1;
                 while semicolon > 0 {
-                    let line = self
-                        .lines
-                        .as_mut()
-                        .unwrap()
-                        .next();
+                    let line = self.lines.as_mut().unwrap().next();
                     if line.is_none() {
                         return Err(CommandError("Error parsing error".to_string()));
                     }
@@ -288,7 +270,7 @@ impl<'a> LogoParser<'a> {
         }
     }
 
-    fn match_action(&mut self, parts: &Vec<&str>,sequence:Option<&Vec<&str>>) -> Result<(), ()> {
+    fn match_action(&mut self, parts: &Vec<&str>, sequence: Option<&Vec<&str>>) -> Result<(), ()> {
         if parts[0] == "]" {
             if self.block > 0 {
                 self.block -= 1;
@@ -480,28 +462,28 @@ impl<'a> LogoParser<'a> {
 
     fn log_error(&self, error: &str) -> Result<(), ()> {
         println!("Error: {}, line: {}", error, self.line_number);
-        std::process::exit(1);
+        // std::process::exit(1);
+        Err(())
     }
 
     fn draw(&mut self, val: f32, arg: &str) {
-      let mut dir = self.direction.clone();
+        let mut dir = self.direction.clone();
         match arg {
             "LEFT" => {
-              dir += 270.0;
+                dir += 270.0;
             }
             "RIGHT" => {
-              dir += 90.0;
+                dir += 90.0;
             }
             "FORWARD" => {}
             "BACK" => {
-              dir += 180.0;
+                dir += 180.0;
             }
             _ => {}
         }
 
         if self.pen_up {
-            (self.xcor, self.ycor) =
-                get_end_coordinates(self.xcor, self.ycor, dir as i32, val);
+            (self.xcor, self.ycor) = get_end_coordinates(self.xcor, self.ycor, dir as i32, val);
             return;
         }
 
