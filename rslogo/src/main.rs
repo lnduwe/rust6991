@@ -484,23 +484,24 @@ impl<'a> LogoParser<'a> {
     }
 
     fn draw(&mut self, val: f32, arg: &str) {
+      let mut dir = self.direction.clone();
         match arg {
             "LEFT" => {
-                self.direction -= 90.0;
+              dir += 270.0;
             }
             "RIGHT" => {
-                self.direction += 90.0;
+              dir += 90.0;
             }
             "FORWARD" => {}
             "BACK" => {
-                self.direction += 180.0;
+              dir += 180.0;
             }
             _ => {}
         }
 
         if self.pen_up {
             (self.xcor, self.ycor) =
-                get_end_coordinates(self.xcor, self.ycor, self.direction as i32, val);
+                get_end_coordinates(self.xcor, self.ycor, dir as i32, val);
             return;
         }
 
@@ -511,7 +512,7 @@ impl<'a> LogoParser<'a> {
             .draw_simple_line(
                 self.xcor,
                 self.ycor,
-                self.direction as i32,
+                dir as i32,
                 val,
                 COLORS[self.pen_color as usize % 16],
             )
