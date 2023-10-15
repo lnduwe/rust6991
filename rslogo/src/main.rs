@@ -1,6 +1,6 @@
 use clap::Parser;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     fs::File,
     io::Read,
 };
@@ -27,11 +27,10 @@ struct Args {
 }
 
 struct CommandError(String);
-// struct procedures{
-//     name: String,
-//     commands: VecDeque<String>,
-
-// }
+struct Procedure {
+    commands: Vec<String>,
+    args: Vec<String>,
+}
 #[derive(Default)]
 struct LogoParser<'a> {
     pen_up: bool,
@@ -41,10 +40,10 @@ struct LogoParser<'a> {
     direction: f32,
     pen_color: f32,
     variables: HashMap<String, f32>,
-    procedures: HashMap<String, VecDeque<String>>,
     line_number: usize,
     image: Option<&'a mut Image>,
     lines: Option<std::str::Lines<'a>>,
+    procedures: HashMap<String, Procedure>,
 }
 impl<'a> LogoParser<'a> {
     fn new(c: &'a str, w: u32, h: u32, img: Option<&'a mut Image>) -> Self {
@@ -84,13 +83,12 @@ impl<'a> LogoParser<'a> {
         Ok(())
     }
 
-    fn parse_action_with_vec(&mut self, commands: &Vec<&str>) -> Result<(), ()> {
-        for i in 0..commands.len(){
-            let line = commands[i];
+    fn parse_action_with_vec<T: AsRef<str>>(&mut self, commands: &Vec<T>) -> Result<(), ()> {
+        for i in 0..commands.len() {
+            let line = commands[i].as_ref();
             if line.len() == 0 {
                 continue;
             }
-
             let parts = &line.split_whitespace().collect();
 
             let res = self.match_action(parts);
@@ -99,7 +97,6 @@ impl<'a> LogoParser<'a> {
                 return res;
             }
         }
-
         Ok(())
     }
 
@@ -245,26 +242,35 @@ impl<'a> LogoParser<'a> {
 
                 Ok(0.0)
             }
-            "T0"=>{
-               
-              let mut v: VecDeque<String> = VecDeque::new();
-              loop {
-                  let line = self
-                      .lines
-                      .as_mut()
-                      .unwrap()
-                      .next()
-                      .expect("Error parsing while.");
-                  if line.contains("END") {
-                     break;
-                  }
-                  v.push_back(line.to_string());
-              }
-              self.procedures.insert(parts[1].to_string(), v);
+            "T0" => {
+                let mut args: Vec<String> = Vec::new();
+                for i in 1..parts.len() {
+                    args.push(parts[i].to_string());
+                }
+                let mut cmd: Vec<String> = Vec::new();
 
-              Ok(0.0)
+                loop {
+                    let line = self
+                        .lines
+                        .as_mut()
+                        .unwrap()
+                        .next()
+                        .expect("Error parsing while.");
+                    if line.contains("END") {
+                        break;
+                    }
+                    cmd.push(line.to_string());
+                }
+
+                let pros = Procedure {
+                    commands: cmd,
+                    args: args,
+                };
+
+                self.procedures.insert(parts[1].to_string(), pros);
+
+                Ok(0.0)
             }
-
 
             _ => {
                 return Err(CommandError("Wrong type of command".to_string()));
@@ -410,15 +416,36 @@ impl<'a> LogoParser<'a> {
                     return self.log_error(&e.0);
                 }
             },
-            "TO"=> match self.process_actions(&parts) {
-              Ok(_) => {}
-              Err(e) => {
-                  return self.log_error(&e.0);
-              }
-            }  
+            "TO" => match self.process_actions(&parts) {
+                Ok(_) => {}
+                Err(e) => {
+                    return self.log_error(&e.0);
+                }
+            },
 
             _ => {
+              let pro = self.procedures.get(parts[0]);
+              if pro.is_none(){
                 println!("Wrong type of command on line {}", self.line_number);
+              }else{
+                let mut args: Vec<String> = Vec::new();
+                for i in 1..parts.len() {
+                    args.push(parts[i].to_string());
+                }
+                let mut cmd: Vec<String> = Vec::new();
+                let pros = pro.unwrap();
+                for i in 0..pros.commands.len() {
+                    let mut line = pros.commands[i].clone();
+                    for j in 0..pros.args.len() {
+                        line = line.replace(&pros.args[j], &args[j]);
+                    }
+                    cmd.push(line);
+                }
+                let res = self.parse_action_with_vec(&cmd);
+                if res.is_err() {
+                    return res;
+                }
+              }
             }
         }
         Ok(())
