@@ -49,7 +49,7 @@ impl<'a> LogoParser<'a> {
             xcor: w as f32 / 2.0,
             ycor: h as f32 / 2.0,
             direction: 0.0,
-            pen_color: 1.0,
+            pen_color: 7.0,
             variables: HashMap::new(),
             procedures: HashMap::new(),
             line_number: 1,
@@ -79,7 +79,7 @@ impl<'a> LogoParser<'a> {
 
             let parts = &line.split_whitespace().collect();
 
-            let res = self.match_action(parts);
+            let res = self.match_action (parts,None);
 
             if res.is_err() {
                 return res;
@@ -98,7 +98,7 @@ impl<'a> LogoParser<'a> {
             }
             let parts = &line.split_whitespace().collect();
 
-            let res = self.match_action(parts);
+            let res = self.match_action(parts,None);
 
             if res.is_err() {
                 return res;
@@ -221,8 +221,11 @@ impl<'a> LogoParser<'a> {
                         .lines
                         .as_mut()
                         .unwrap()
-                        .next()
-                        .expect("Error parsing while.");
+                        .next();
+                    if line.is_none() {
+                        return Err(CommandError("Error parsing error".to_string()));
+                    }
+                    let line = line.unwrap();
                     if line.contains("[") {
                         semicolon += 1;
                     } else if line.contains("]") {
@@ -285,7 +288,7 @@ impl<'a> LogoParser<'a> {
         }
     }
 
-    fn match_action(&mut self, parts: &Vec<&str>) -> Result<(), ()> {
+    fn match_action(&mut self, parts: &Vec<&str>,sequence:Option<&Vec<&str>>) -> Result<(), ()> {
         if parts[0] == "]" {
             if self.block > 0 {
                 self.block -= 1;
