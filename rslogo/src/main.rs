@@ -242,13 +242,12 @@ impl<'a> LogoParser<'a> {
                 let mut cmd: Vec<String> = Vec::new();
 
                 loop {
-                    let line = self
-                        .lines
-                        .as_mut()
-                        .unwrap()
-                        .next()
-                        .expect("Error parsing To.");
-                    if line.contains("END") {
+                    let line = self.lines.as_mut().unwrap().next();
+                    if line.is_none() {
+                        return Err(CommandError("Error parsing TO".to_string()));
+                    }
+                    let line = line.unwrap();
+                    if line.trim().eq("END") {
                         break;
                     }
                     cmd.push(line.to_string());
@@ -418,15 +417,12 @@ impl<'a> LogoParser<'a> {
             _ => {
                 let pro = self.procedures.get(parts[0]);
                 if pro.is_none() {
-                    let _ = self.log_error("No procedures found");
+                    return self.log_error("No procedures found");
                 } else {
                     let proced = pro.unwrap();
                     let arg = proced.args.clone();
 
                     let len = arg.len();
-                    // if len != parts.len() - 1 {
-                    //     let _ = self.log_error("Wrong number of arguments");
-                    // }
                     let mut part: Vec<&str> = Vec::new();
                     for i in 1..parts.len() {
                         part.push(parts[i]);
@@ -437,7 +433,7 @@ impl<'a> LogoParser<'a> {
                                 self.variables.insert(arg[i].to_string(), result);
                             }
                             None => {
-                                let _ = self.log_error("Error parsing procedure");
+                                return self.log_error("Error parsing procedure");
                             }
                         }
                     }
@@ -445,14 +441,7 @@ impl<'a> LogoParser<'a> {
                     self.parse_action_with_vec(&cmd)?;
 
                     for i in 0..len {
-                        // match self.get_value(parts[i + 1]) {
-                        //     Some(_) => {
                         self.variables.remove(arg[i].as_str());
-                        // }
-                        // None => {
-                        //     let _ = self.log_error("Error parsing procedure");
-                        // }
-                        // }
                     }
                 }
             }
