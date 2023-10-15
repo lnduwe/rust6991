@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::{collections::HashMap, f32::consts::E, fs::File, io::Read};
+use std::{collections::HashMap, fs::File, io::Read};
 use unsvg::{get_end_coordinates, Image, COLORS};
 
 mod tool;
@@ -65,26 +65,75 @@ impl<'a> LogoParser<'a> {
                 self.line_number += 1;
                 continue;
             }
-
             let parts = &line.split_whitespace().collect();
-            self.match_action(parts, None)?;
+            self.match_action(parts)?;
             self.line_number += 1;
         }
         Ok(())
     }
 
-    fn parse_action_with_vec<T: AsRef<str>>(&mut self, commands: &Vec<T>) -> Result<(), ()> {
-        for i in 0..commands.len() {
-            let line = commands[i].as_ref();
-            if line.len() == 0 {
-                continue;
+    fn parse_action_with_vec<T: AsRef<str>>(
+        &mut self,
+        commands: &Vec<T>,
+        procedure: bool,
+    ) -> Result<(), ()> {
+        if !procedure {
+            for i in 0..commands.len() {
+                let line = commands[i].as_ref();
+                if line.len() == 0 {
+                    continue;
+                }
+                let parts = &line.split_whitespace().collect();
+
+                self.match_action(parts)?;
             }
-            let parts = &line.split_whitespace().collect();
+        } else {
+            for i in 0..commands.len() {
+                let line = commands[i].as_ref();
+                if line.len() == 0 {
+                    continue;
+                }
+                let parts: &Vec<&str> = &line.split_whitespace().collect();
+                if parts[0].eq("WHILE") {
+                    let result = self.prefix(parts);
+                    if result.is_none() {
+                        return Err(());
+                    }
+                    let r = result.unwrap();
+                    if r == 0.0 {
+                        break;
+                    }
+                    let start = i + 1;
+                    let mut end = 0;
+                    for j in i + 1..commands.len() {
+                        let line = commands[j].as_ref();
+                        if line.len() == 0 {
+                            continue;
+                        }
+                        if line.contains("]") {
+                            end = j;
+                            break;
+                        }
+                    }
 
-            let res = self.match_action(parts, None);
+                    loop {
+                        for i in start..end {
+                            let line = commands[i].as_ref();
+                            if line.len() == 0 {
+                                continue;
+                            }
+                            let parts: &Vec<&str> = &line.split_whitespace().collect();
+                            self.match_action(parts)?;
+                        }
+                        let result = self.prefix(parts);
+                        let r = result.unwrap();
+                        if r == 0.0 {
+                            break;
+                        }
+                    }
+                }
 
-            if res.is_err() {
-                return res;
+                self.match_action(parts)?;
             }
         }
         Ok(())
@@ -217,7 +266,7 @@ impl<'a> LogoParser<'a> {
                 }
 
                 loop {
-                    let _ = self.parse_action_with_vec(&v);
+                    let _ = self.parse_action_with_vec(&v, false);
                     if self.block < 0 {
                         self.block = 0;
                     }
@@ -269,7 +318,7 @@ impl<'a> LogoParser<'a> {
         }
     }
 
-    fn match_action(&mut self, parts: &Vec<&str>, sequence: Option<&Vec<&str>>) -> Result<(), ()> {
+    fn match_action(&mut self, parts: &Vec<&str>) -> Result<(), ()> {
         if parts[0] == "]" {
             if self.block > 0 {
                 self.block -= 1;
@@ -438,7 +487,7 @@ impl<'a> LogoParser<'a> {
                         }
                     }
                     let cmd = proced.commands.clone();
-                    self.parse_action_with_vec(&cmd)?;
+                    self.parse_action_with_vec(&cmd, true)?;
 
                     for i in 0..len {
                         self.variables.remove(arg[i].as_str());
