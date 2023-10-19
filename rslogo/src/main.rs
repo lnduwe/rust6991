@@ -78,8 +78,9 @@ impl<'a> LogoParser<'a> {
         procedure: bool,
     ) -> Result<(), ()> {
         if !procedure {
-            for i in 0..commands.len() {
-                let line = commands[i].as_ref();
+            for l in commands {
+                // let line = commands[i].as_ref();
+                let line = l.as_ref();
                 if line.is_empty() {
                     continue;
                 }
@@ -105,26 +106,28 @@ impl<'a> LogoParser<'a> {
                     }
                     let start = i + 1;
                     let mut end = 0;
-                    for j in i + 1..commands.len() {
-                        let line = commands[j].as_ref();
+
+                    for (j, l) in commands.iter().enumerate().skip(start) {
+                        let line = l.as_ref();
                         if line.is_empty() {
                             continue;
                         }
-                        if line.contains("]") {
+                        if line.contains(']') {
                             end = j;
                             break;
                         }
                     }
 
                     loop {
-                        for i in start..end {
-                            let line = commands[i].as_ref();
+                        for l in commands.iter().take(end).skip(start) {
+                            let line = l.as_ref();
                             if line.is_empty() {
                                 continue;
                             }
                             let parts: &Vec<&str> = &line.split_whitespace().collect();
                             self.match_action(parts)?;
                         }
+
                         let result = self.prefix(parts);
                         let r = result.unwrap();
                         if r == 0.0 {
@@ -156,8 +159,9 @@ impl<'a> LogoParser<'a> {
                 }
                 if parts.len() > 2 {
                     let mut cmd: Vec<&str> = Vec::new();
-                    for i in 1..parts.len() {
-                        cmd.push(parts[i]);
+
+                    for l in parts.iter().skip(1) {
+                        cmd.push(l);
                     }
 
                     match self.prefix(&cmd) {
@@ -176,11 +180,10 @@ impl<'a> LogoParser<'a> {
                     Err(CommandError("Wrong type of arguments".to_string()))
                 } else {
                     let mut cmd: Vec<&str> = Vec::new();
-                    for i in 2..parts.len() {
-                        cmd.push(parts[i]);
+                    for pt in parts.iter().skip(2) {
+                        cmd.push(pt);
                     }
                     let value = self.prefix(&cmd);
-
                     let name = parts[1][1..parts[1].len()].to_string();
 
                     match value {
@@ -188,9 +191,7 @@ impl<'a> LogoParser<'a> {
                             self.variables.insert(name, result);
                             Ok(0.0)
                         }
-                        None => {
-                             Err(CommandError("Wrong type of arguments".to_string()))
-                        }
+                        None => Err(CommandError("Wrong type of arguments".to_string())),
                     }
                 }
             }
@@ -249,9 +250,9 @@ impl<'a> LogoParser<'a> {
                         return Err(CommandError("Error parsing error".to_string()));
                     }
                     let line = line.unwrap();
-                    if line.contains("[") {
+                    if line.contains('[') {
                         semicolon += 1;
-                    } else if line.contains("]") {
+                    } else if line.contains(']') {
                         semicolon -= 1;
                     }
                     v.push(line);
@@ -277,9 +278,10 @@ impl<'a> LogoParser<'a> {
             }
             "TO" => {
                 let mut arg: Vec<String> = Vec::new();
-                for i in 2..parts.len() {
-                    arg.push(parts[i][1..].to_string());
+                for pt in parts.iter().skip(2) {
+                    arg.push(pt[1..].to_string());
                 }
+
                 let mut cmd: Vec<String> = Vec::new();
 
                 loop {
@@ -459,30 +461,32 @@ impl<'a> LogoParser<'a> {
                 //     return self.log_error("No procedures found");
                 // } else {
                 if let Some(proced) = pro {
-                    
                     let arg = proced.args.clone();
 
                     let len = arg.len();
                     let mut part: Vec<&str> = Vec::new();
-                    for i in 1..parts.len() {
-                        part.push(parts[i]);
+                    for p in parts.iter().skip(1) {
+                        part.push(p);
                     }
-                    for i in 0..len {
+
+                    for ag in arg.iter().take(len) {
                         match self.prefix(&part) {
                             Some(result) => {
-                                self.variables.insert(arg[i].to_string(), result);
+                                self.variables.insert(ag.to_string(), result);
                             }
                             None => {
                                 return self.log_error("Error parsing procedure");
                             }
                         }
                     }
+
                     let cmd = proced.commands.clone();
                     self.parse_action_with_vec(&cmd, true)?;
 
-                    for i in 0..len {
-                        self.variables.remove(arg[i].as_str());
-                    }
+
+                    // for i in 0..len {
+                    //     self.variables.remove(arg[i].as_str());
+                    // }
                 } else {
                     return self.log_error("No procedures found");
                 }
@@ -552,7 +556,7 @@ fn main() -> Result<(), ()> {
 
     logo_parser.parse_action()?;
 
-    match image_path.extension().map(|s| s.to_str()).flatten() {
+    match image_path.extension().and_then(|s| s.to_str()) {
         Some("svg") => {
             let res = image.save_svg(&image_path);
             if let Err(e) = res {
