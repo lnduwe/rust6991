@@ -27,8 +27,24 @@ struct Procedure {
     commands: Vec<String>,
     args: Vec<String>,
 }
+/// A struct representing a Logo parser, containing various properties such as pen state, position, direction, and variables.
 #[derive(Default)]
 struct LogoParser<'a> {
+    /// Struct representing the state of the Logo interpreter.
+    ///
+    /// # Fields
+    ///
+    /// * `pen_up`: A boolean indicating whether the pen is up or down.
+    /// * `block`: An integer representing the number of brackets, for use with IF and WHILE statements.
+    /// * `xcor`: A float representing the x-coordinate of the turtle.
+    /// * `ycor`: A float representing the y-coordinate of the turtle.
+    /// * `direction`: A float representing the direction the turtle is facing.
+    /// * `pen_color`: A float representing the color of the pen.
+    /// * `variables`: A HashMap that stores variables.
+    /// * `line_number`: An usize representing the current line number.
+    /// * `image`: An optional mutable reference to an Image.
+    /// * `lines`: An optional iterator over the lines of code.
+    /// * `procedures`: A HashMap that stores procedures.
     pen_up: bool,
     block: i32,
     xcor: f32,
@@ -58,7 +74,7 @@ impl<'a> LogoParser<'a> {
         }
     }
 
-    //command entry
+    //parse commands from lines
     fn parse_action(&mut self) -> Result<(), ()> {
         while let Some(line) = self.lines.as_mut().unwrap().next() {
             if line.is_empty() {
@@ -72,6 +88,7 @@ impl<'a> LogoParser<'a> {
         Ok(())
     }
 
+    //parse commands from the given vector
     fn parse_action_with_vec<T: AsRef<str>>(
         &mut self,
         commands: &Vec<T>,
@@ -142,7 +159,7 @@ impl<'a> LogoParser<'a> {
         Ok(())
     }
 
-    //draw pictures and return value
+    //process action according to the command
     fn process_actions(&mut self, parts: &Vec<&str>) -> Result<f32, CommandError> {
         match parts[0] {
             "PENUP" | "PENDOWN" => {
@@ -310,6 +327,17 @@ impl<'a> LogoParser<'a> {
         }
     }
 
+    /// This function matches the action to be taken based on the input parts. It processes the actions and logs any errors that occur. It also updates the pen color, direction, and position based on the input parts.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - mutable reference to the current instance of the Turtle struct
+    /// * `parts` - a vector of string slices representing the input parts to be processed
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the action is successfully matched and processed
+    /// * `Err(())` if an error occurs during processing
     fn match_action(&mut self, parts: &Vec<&str>) -> Result<(), ()> {
         if parts[0] == "]" {
             if self.block > 0 {
@@ -457,9 +485,6 @@ impl<'a> LogoParser<'a> {
 
             _ => {
                 let pro = self.procedures.get(parts[0]);
-                // if pro.is_none() {
-                //     return self.log_error("No procedures found");
-                // } else {
                 if let Some(proced) = pro {
                     let arg = proced.args.clone();
 
@@ -482,11 +507,6 @@ impl<'a> LogoParser<'a> {
 
                     let cmd = proced.commands.clone();
                     self.parse_action_with_vec(&cmd, true)?;
-
-
-                    // for i in 0..len {
-                    //     self.variables.remove(arg[i].as_str());
-                    // }
                 } else {
                     return self.log_error("No procedures found");
                 }
@@ -495,12 +515,26 @@ impl<'a> LogoParser<'a> {
         Ok(())
     }
 
+    /// Logs an error message along with the line number where the error occurred.
+    ///
+    /// # Arguments
+    ///
+    /// * `error` - A string slice that holds the error message.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` enum with an empty `Err` variant.
     fn log_error(&self, error: &str) -> Result<(), ()> {
         println!("Error: {}, line: {}", error, self.line_number);
-        // std::process::exit(1);
         Err(())
     }
 
+    /// Draws a line of length `val` in the direction specified by `arg`.
+    ///
+    /// # Arguments
+    ///
+    /// * `val` - A `f32` representing the length of the line to be drawn.
+    /// * `arg` - A `&str` representing the direction in which the line should be drawn. Valid values are "LEFT", "RIGHT", "FORWARD", and "BACK".
     fn draw(&mut self, val: f32, arg: &str) {
         let mut dir = self.direction;
         match arg {
@@ -578,4 +612,41 @@ fn main() -> Result<(), ()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_draw_forward() {
+        let mut turtle = LogoParser::new("test", 100, 100, None);
+        turtle.draw(50.0, "FORWARD");
+        assert_eq!(turtle.xcor, 50.0);
+        assert_eq!(turtle.ycor, 0.0);
+    }
+
+    #[test]
+    fn test_draw_back() {
+        let mut turtle = LogoParser::new("xxx", 100, 100, None);
+        turtle.draw(50.0, "BACK");
+        assert_eq!(turtle.xcor, 50.0);
+        assert_eq!(turtle.ycor, 100.0);
+    }
+
+    #[test]
+    fn test_draw_left() {
+        let mut turtle = LogoParser::new("xxx", 100, 100, None);
+        turtle.draw(50.0, "LEFT");
+        assert_eq!(turtle.xcor, 0.0);
+        assert_eq!(turtle.ycor, 50.0);
+    }
+
+    #[test]
+    fn test_draw_right() {
+        let mut turtle = LogoParser::new("xxx", 100, 100, None);
+        turtle.draw(50.0, "RIGHT");
+        assert_eq!(turtle.xcor, 100.0);
+        assert_eq!(turtle.ycor, 50.0);
+    }
 }

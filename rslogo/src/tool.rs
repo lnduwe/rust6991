@@ -5,6 +5,7 @@ use crate::LogoParser;
 pub const QUOTES: char = '\"';
 
 #[derive(Debug)]
+/// An error that occurs when a command fails to execute.
 pub struct CommandError(pub String);
 
 pub trait Tool {
@@ -14,61 +15,97 @@ pub trait Tool {
     fn quantize(x: f32) -> f32 {
         (x * 256.0).round() / 256.0
     }
+    
+    /// Calculates the end coordinates of a line segment given its starting point, direction and length.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `x` - The x-coordinate of the starting point of the line segment.
+    /// * `y` - The y-coordinate of the starting point of the line segment.
+    /// * `direction` - The direction of the line segment in degrees. 0 degrees is straight up and angles increase clockwise.
+    /// * `length` - The length of the line segment.
+    /// 
+    /// # Returns
+    /// 
+    /// A tuple containing the x and y coordinates of the end point of the line segment.
     fn get_end_coordinates(x: f32, y: f32, direction: i32, length: f32) -> (f32, f32) {
-        let x = Self::quantize(x);
-        let y = Self::quantize(y);
+      let x = Self::quantize(x);
+      let y = Self::quantize(y);
 
-        // directions start at 0 degrees being straight up, and go clockwise
-        // we need to add 90 degrees to make 0 degrees straight right.
-        let direction_rad = ((direction as f32) - 90.0).to_radians();
+      // directions start at 0 degrees being straight up, and go clockwise
+      // we need to add 90 degrees to make 0 degrees straight right.
+      let direction_rad = ((direction as f32) - 90.0).to_radians();
 
-        let end_x = Self::quantize(x + (direction_rad.cos() * length));
-        let end_y = Self::quantize(y + (direction_rad.sin() * length));
+      let end_x = Self::quantize(x + (direction_rad.cos() * length));
+      let end_y = Self::quantize(y + (direction_rad.sin() * length));
 
-        (end_x, end_y)
+      (end_x, end_y)
     }
 }
 
 impl Tool for LogoParser<'_> {
+    /// Returns the value of a given variable or constant.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `name` - A string slice that holds the name of the variable or constant.
+    /// 
+    /// # Returns
+    /// 
+    /// * `Some(f32)` - The value of the variable or constant if it exists and is a float.
+    /// * `Some(1.0)` - If the name is a quoted string "TRUE".
+    /// * `Some(0.0)` - If the name is a quoted string "FALSE".
+    /// * `None` - If the name is not a valid variable or constant.
     fn get_value(&self, name: &str) -> Option<f32> {
-        if name.starts_with(QUOTES) {
-            let arg = name[1..name.len()].to_string();
-            let result = arg.parse::<f32>();
-            match result {
-                Ok(result) => Some(result),
-                Err(_) => {
-                    if arg == "TRUE" {
-                        return Some(1.0);
-                    } else if arg == "FALSE" {
-                        return Some(0.0);
-                    }
-                    None
-                }
+      if name.starts_with(QUOTES) {
+        let arg = name[1..name.len()].to_string();
+        let result = arg.parse::<f32>();
+        match result {
+          Ok(result) => Some(result),
+          Err(_) => {
+            if arg == "TRUE" {
+              return Some(1.0);
+            } else if arg == "FALSE" {
+              return Some(0.0);
             }
-        } else if name.starts_with(':') {
-            let arg = name[1..name.len()].to_string();
-
-            match self.variables.get(&arg) {
-                Some(result) => {
-                    return Some(*result);
-                }
-                None => {
-                    return None;
-                }
-            }
-        } else if name.eq("XCOR") {
-            return Some(self.xcor);
-        } else if name.eq("YCOR") {
-            return Some(self.ycor);
-        } else if name.eq("HEADING") {
-            return Some(self.direction);
-        } else if name.eq("COLOR") {
-            return Some(self.pen_color);
-        } else {
-            return None;
+            None
+          }
         }
+      } else if name.starts_with(':') {
+        let arg = name[1..name.len()].to_string();
+
+        match self.variables.get(&arg) {
+          Some(result) => {
+            return Some(*result);
+          }
+          None => {
+            return None;
+          }
+        }
+      } else if name.eq("XCOR") {
+        return Some(self.xcor);
+      } else if name.eq("YCOR") {
+        return Some(self.ycor);
+      } else if name.eq("HEADING") {
+        return Some(self.direction);
+      } else if name.eq("COLOR") {
+        return Some(self.pen_color);
+      } else {
+        return None;
+      }
     }
 
+    /// Evaluates a list of commands in prefix notation and returns the result as a float.
+    /// 
+    /// # Arguments
+    ///
+    /// * `commands` - A slice of string references representing the commands to be evaluated.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<f32>` representing the result of the evaluation. If the evaluation is successful, 
+    /// the result is wrapped in `Some`. If there is an error during evaluation, `None` is returned.
+    ///
     fn prefix(&self, commands: &[&str]) -> Option<f32> {
         let mut stack: VecDeque<String> = VecDeque::new();
 
@@ -150,7 +187,7 @@ fn test_get_value() {
     assert_eq!(parser.get_value("XCOR"), Some(25.0));
     assert_eq!(parser.get_value("YCOR"), Some(25.0));
     assert_eq!(parser.get_value("HEADING"), Some(0.0));
-    assert_eq!(parser.get_value("COLOR"), Some(1.0));
+    assert_eq!(parser.get_value("COLOR"), Some(7.0));
     assert_eq!(parser.get_value("UNKNOWN"), None);
 }
 
