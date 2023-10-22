@@ -18,28 +18,32 @@ If you have completed a "design excellence" task, please write what
 the task was below (note, it MUST be on the list in the assignment or
 approved by COMP6991 staff).
 
->
+> I Built my program so it is as close to zero-copy as possible.
+
+
 
 Please write a paragraph or two (max. 250 words) describing how your design was
 influenced by this challenge, with specific reference to sections of your code.
 If you completed the "Pull Request" design excellence, please just leave a link
 to your PR.
 
->
->
->
+>I tried not to copy any data from outside LogoParser, so I chose to pass references to std::str::Lines and Image to LogoParser::new(). 
+So the struct will not consume much memory when the amount of Logo code is large. 
+I used Vec<&str> to store references to commands when handling "WHILE" command so that it doesn't hard copy the commands.
+But there are some flaws. In main.rs line 508, I had to use clone, otherwise an error "cannot move out of `proced.commands` which is behind a shared reference" will appear. 
+
 
 ## Design Limitations
 
 If you made any design decisions which you now regret making; but don't to go back and change them,
 let us know here. You can make up your design marks by acknowledging up to 5 things you would do
 differently now.
->
-I think using Option<std::str::Lines<'a>> in LogoParser struct is not a good choice.
+
+> I think using Option<std::str::Lines<'a>> in LogoParser struct is not the best choice.
 I thought data in Lines could be read repeatedly, like other languages. 
 But then I found that after using the nth(i) method to read a certain line of commands, the line is no longer available. 
-This makes the code more complex when processing the 'while' command and I had to create a Vec to store the commands. 
-If I rewrite this program, I might use a container similar to Vec, so that I can easily read a certain line of commands, and it will be more convenient when handling if and while.
+This makes the code more complex when processing the 'WHILE' command and I had to create a Vec to store the commands. 
+If I rewrite this program, I might use a container similar to Vec, so that I can easily read a certain line of commands, and it will be more convenient when handling "IF" and "WHILE".
 
 ## Other Comments
 
