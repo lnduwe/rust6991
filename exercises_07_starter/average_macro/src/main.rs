@@ -1,6 +1,15 @@
-
 // YOUR MACRO HERE
-
+macro_rules! avg {
+  ($($expr:expr),*) => {{
+      let mut sum = 0.0;
+      let mut count = 0;
+      $(
+          sum += $expr as f64;
+          count += 1;
+      )*
+      sum as i32 / count 
+  }}
+}
 
 // DO NOT CHANGE
 fn main() {
