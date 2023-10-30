@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use std::thread;
 mod test;
 fn main() {
     // take number from commandline arg
@@ -30,11 +31,20 @@ fn main() {
     // first, split up the digits_operators into 6 vecs
     // using the chunks method
 
+    //count time start 
+    let start = std::time::Instant::now();
+
     for (digits, operators) in digits_operators {
         // go through one combination of
         // operators and see if it works
-        let _ = calculate(digits, operators);
+        let thr = thread::spawn(move || {
+            let _ = calculate(digits, operators);
+        });
+        thr.join().unwrap();
     }
+    //count time end
+    let duration = start.elapsed();
+    println!("Time elapsed is: {:?}", duration);
 }
 
 // DO NOT MODIFY
