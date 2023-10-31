@@ -5,10 +5,10 @@ fn print_success() {
 ////////// DO NOT CHANGE ABOVE HERE /////////
 // TODO: create `if_any!()` macro.
 macro_rules! if_any {
-    ($($expr:expr),*; {$($block:tt)*}) => {
-        if $($expr)||*  {
-             $($block)*
-        }
+    ($($expr:expr),*; $block:block) => {
+        if ($($expr)||*)
+             $block
+        
     };
 }
 

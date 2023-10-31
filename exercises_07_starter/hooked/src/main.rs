@@ -26,8 +26,16 @@ struct Hook {
 
 impl Hook {
     // TODO: implement the new method
-
+    fn new(num_left: u32, callback: impl Fn(&mut Cpu) + 'static) -> Self {
+        Hook {
+            num_left,
+            callback: Rc::new(callback),
+        }
+    }
     // TODO: implement a call method
+    fn call( &self, cpu: &mut Cpu){
+      (self.callback)(cpu);
+    }
 }
 
 enum Instruction<F: Fn(&Cpu) -> bool> {

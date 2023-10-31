@@ -1,5 +1,11 @@
 //TODO: Your curry! macro here:
-
+macro_rules! curry {
+  (_, $block:block) => {$block};
+  (($argident:ident : $argtype:ty) => $(($argidents:ident: $argtypes:ty) =>)* _, $block:block) => {
+      move |$argident: $argtype|
+          curry!($(($argidents: $argtypes) =>)* _, $block)
+  };
+}
 
 ////////// DO NOT CHANGE BELOW HERE /////////
 
@@ -12,6 +18,7 @@ fn get_example_vec() -> Vec<i32> {
 }
 
 fn main() {
+    // let jjjj = curry!(min);
     let is_between = curry!((min: i32) => (max: i32) => (item: &i32) => _, {
         min < *item && *item < max
     });

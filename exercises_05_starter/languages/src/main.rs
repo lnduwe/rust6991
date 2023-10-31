@@ -33,13 +33,10 @@ struct Person {
 // implement the From trait, such that you can convert a &str into a Box<dyn Greeting>.
 //You can assume that only valid strings will be given.
 //In a real codebase, you would want to handle errors (maybe by using the TryFrom trait), but for this exercise, you can assume that the input is valid.
-trait From {
-    fn into(self) -> Box<dyn Greeting>;
-}
 
-impl From for &str {
-    fn into(self) -> Box<dyn Greeting> {
-        match self {
+impl From<&str> for Box<dyn Greeting> {
+    fn from(lan: &str) -> Box<dyn Greeting> {
+        match lan {
             "English" => Box::new(English),
             "Spanish" => Box::new(Spanish),
             "French" => Box::new(French),
@@ -53,7 +50,7 @@ fn main() {
     // john can speak English and Spanish
     let person = Person {
         name: "John".to_string(),
-        greetings: vec![From::into("English"), From::into("Spanish")],
+        greetings: vec!["English".into(), "Spanish".into()],
     };
 
     speak_all_greetings(&person);
@@ -61,7 +58,7 @@ fn main() {
     // jane can speak French
     let person = Person {
         name: "Jane".to_string(),
-        greetings: vec![From::into("French")],
+        greetings: vec!["French".into()],
     };
 
     speak_all_greetings(&person);
@@ -77,6 +74,6 @@ fn speak_all_greetings(person: &Person) {
 
 #[test]
 fn t() {
-    let greeting: Box<dyn Greeting> = From::into("English");
+    let greeting: Box<dyn Greeting> = "English".into();
     greeting.greet();
 }
