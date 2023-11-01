@@ -33,8 +33,8 @@ impl Hook {
         }
     }
     // TODO: implement a call method
-    fn call( &self, cpu: &mut Cpu){
-      (self.callback)(cpu);
+    fn call(&mut self, cpu: &mut Cpu) {
+        (self.callback)(cpu);
     }
 }
 
@@ -61,6 +61,7 @@ enum Instruction<F: Fn(&Cpu) -> bool> {
 struct Cpu {
     current_instruction: InstructionNumber,
     accumulator: u32,
+    hooks: Vec<Hook>,
 }
 
 impl Cpu {
@@ -68,11 +69,23 @@ impl Cpu {
         Cpu {
             current_instruction: InstructionNumber(0),
             accumulator: 0,
+            hooks: Vec::new(),
         }
     }
 
     fn run<F: Fn(&Cpu) -> bool>(&mut self, instructions: Vec<Instruction<F>>) {
         loop {
+            let mut num = 0;
+            for hook in &mut self.hooks.clone() {
+                if hook.num_left == 0 {
+                    hook.call(self);
+                    self.hooks.remove(num);
+                } else {
+                    self.hooks[num].num_left -= 1;
+                }
+                num += 1;
+            }
+
             let instruction = &instructions[self.current_instruction.0 as usize];
             match instruction {
                 Instruction::Nop => {
@@ -93,6 +106,7 @@ impl Cpu {
                 Instruction::Callback(hook) => {
                     println!("\t...callback instruction");
                     //TODO: implement this
+                    self.hooks.push(hook.clone());
                 }
                 Instruction::JumpIfCondition(condition, n) => {
                     println!("\t...conditional jump");
@@ -111,7 +125,9 @@ impl Cpu {
 
 fn main() {
     let args = std::env::args().skip(1).collect::<Vec<String>>();
-
+    // simple_test();
+    // simple_test_with_hook();
+    // complex_test();
     for arg in args {
         match arg.parse::<i32>() {
             Ok(1) => simple_test(),
