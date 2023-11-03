@@ -38,7 +38,7 @@ fn main() {
 
     thread::scope(|s| {
         for i in 0..threads {
-            if let Some(chunk) = chunks.nth(i) {
+            if let Some(chunk) = chunks.next() {
                 s.spawn(move || {
                     for (digits, operators) in chunk {
                         let _ = calculate(digits.to_vec(), operators.to_vec());
