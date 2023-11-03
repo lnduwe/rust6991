@@ -30,21 +30,23 @@ fn main() {
     // you only need to change code from here onwards
     // first, split up the digits_operators into 6 vecs
     // using the chunks method
+    let threads = 6;
+    let mut chunks = digits_operators
+        .chunks(length / threads)
+        .collect::<Vec<_>>()
+        .into_iter();
 
-    //count time start 
-    let start = std::time::Instant::now();
-
-    for (digits, operators) in digits_operators {
-        // go through one combination of
-        // operators and see if it works
-        let thr = thread::spawn(move || {
-            let _ = calculate(digits, operators);
-        });
-        thr.join().unwrap();
-    }
-    //count time end
-    let duration = start.elapsed();
-    println!("Time elapsed is: {:?}", duration);
+    thread::scope(|s| {
+        for i in 0..threads {
+            if let Some(chunk) = chunks.nth(i) {
+                s.spawn(move || {
+                    for (digits, operators) in chunk {
+                        let _ = calculate(digits.to_vec(), operators.to_vec());
+                    }
+                });
+            }
+        }
+    });
 }
 
 // DO NOT MODIFY
