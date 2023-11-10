@@ -1,6 +1,6 @@
 use pars_libs::{parse_line, Remote, RemoteCommand};
 use std::collections::VecDeque;
-use std::io::{self, BufRead};
+use std::io::{self, stdout, BufRead, Write};
 use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Mutex};
 use std::vec;
@@ -11,6 +11,7 @@ fn parse_input() {
     println!("{:?}", commands);
 }
 
+#[derive(Clone, Debug)]
 struct ParallelCommand {
     command: String,
     args: Vec<String>,
@@ -29,46 +30,54 @@ impl ParallelExecutor {
     fn new() -> Self {
         Self {
             commands: Vec::new(),
-            thread_limit: 1,
+            thread_limit: 2,
             counter: Arc::new(Mutex::new(0)),
             mode: String::from("Never"),
         }
     }
 
-    // fn add_command(&mut self, command: String, args: Vec<String>) {
-    //     self.commands.push_back(ParallelCommand {
-    //         command,
-    //         args,
-    //         executed: false,
-    //         exit_status: None,
-    //     });
-    // }
-
-
-    fn execute_commands(&mut self) {
-        if *self.counter.lock().unwrap() >= self.thread_limit {
-            return;
-        }
-        // if let Some(command) = self.commands.first() {
-            *self.counter.lock().unwrap() += 1;
-          if  let Some(command) = self.commands.pop(){
-            let thread = std::thread::spawn(move || {
-              command.iter().for_each(|cmd|{
-                let mut com = Command::new(cmd.command.as_str());
-                    com.args(cmd.args.clone());
-                    let code = com.status();
-              });
-            });
-            // vec_threads.push(thread);
-            thread.join();
-            *self.counter.lock().unwrap() -= 1;
-            self.execute_commands();
-        }
+    fn add_count(&mut self) {
+        *self.counter.lock().unwrap() += 1;
+    }
+    fn sub_count(&mut self) {
+        *self.counter.lock().unwrap() -= 1;
     }
 
-    // for thread in vec_threads {
-    //     thread.join().unwrap();
-    // }
+    fn execute_commands(&mut self, commands: VecDeque<ParallelCommand>) {
+        if *self.counter.lock().unwrap() >= self.thread_limit {
+            println!("Thread limit reached");
+            return;
+        }
+        self.add_count();
+        let commands = commands.clone();
+        // let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::scope(|s| {
+            let _ = s.spawn(move || {
+                let mut outputs = Vec::<_>::new();
+                commands.into_iter().for_each(|cmd| {
+                    let out = Command::new(cmd.command.as_str())
+                        .args(cmd.args.clone())
+                        .output();
+                    match out {
+                        Ok(output) => {
+                            outputs.push(output);
+                        }
+                        Err(e) => {
+                            println!("Error: {}", e);
+                        }
+                    }
+                });
+                self.sub_count();
+                print_result(outputs);
+            });
+        });
+    }
+}
+
+fn print_result(output: Vec<std::process::Output>) {
+    for i in 0..output.len() {
+        stdout().lock().write_all(&output[i].stdout).ok();
+    }
 }
 
 fn main() {
@@ -95,39 +104,30 @@ fn main() {
     //     }
     // }
 
-    let stdin = std::io::stdin();
-    let lines = stdin.lock().lines();
-
     let mut exec = ParallelExecutor::new();
 
-    for line in lines {
-        let commands: Vec<Vec<String>> = parse_line(&line.unwrap()).unwrap();
-        let mut  cmds: VecDeque<ParallelCommand> = VecDeque::new();
-        for command_args in commands {
-            let para = ParallelCommand {
-                command: command_args[0].clone(),
-                args: command_args[1..].to_vec(),
-                executed: false,
-                exit_status: None,
-            };
-            cmds.push_back(para);
-            // println!("{:?}", para.command);
-            // println!("{:?}", para.args);
-            // exec.commands.push(para);
-        }
-        exec.commands.push(cmds);
-        // for command_args in commands {
-        //     let command = &command_args[0];
-        //     let args = &command_args[1..];
-        //     let status = Command::new(command).args(args).status();
-
-        //     if let Err(exit_status) = status {
-        //         println!("Command failed with exit status: {:?}", exit_status);
-        //         break; // Stop executing commands on this line
-        //     }
-        // }
-        exec.execute_commands();
-    }
+    let _ = std::thread::scope(|s| {
+        let _ = s.spawn(|| {
+            let stdin = std::io::stdin();
+            let lines = stdin.lock().lines();
+            for line in lines {
+                let commands: Vec<Vec<String>> = parse_line(&line.unwrap()).unwrap();
+                let mut cmds: VecDeque<ParallelCommand> = VecDeque::new();
+                for command_args in commands {
+                    let para = ParallelCommand {
+                        command: command_args[0].clone(),
+                        args: command_args[1..].to_vec(),
+                        executed: false,
+                        exit_status: None,
+                    };
+                    cmds.push_back(para);
+                }
+                println!("exec cmds");
+                exec.execute_commands(cmds);
+                // exec.commands.push(cmds);
+            }
+        });
+    });
 
     // println!("Number of -j: {}", num_j);
     // println!("Value of -r: {}", r_value);
@@ -211,4 +211,36 @@ fn main() {
 
 //         executor.execute_commands();
 //     }
+// }
+
+// use std::{process::Command, thread::sleep, time::Duration};
+
+// struct MyCommand {
+//     command: String,
+//     args: Vec<String>,
+// }
+
+// fn main() {
+//     // Assuming you have a cmd variable of type MyCommand
+//     let cmd = MyCommand {
+//         command: "ls".to_string(),
+//         args: vec!["-l".to_string(), "-a".to_string()],
+//     };
+
+//     // Create a new process builder without executing it
+//     let process = Command::new(&cmd.command).args(&cmd.args).output();
+//     println!("{}", String::from_utf8_lossy(&process.unwrap().stdout));
+
+//     // Check if the process was created successfully
+//     // match process {
+//     //     Ok(mut child) => {
+//     //         // Do something with the child process if needed
+//     //         sleep(Duration::from_secs(50)); // For example, you can wait for the process to finish
+//     //         let status = child.wait().expect("Failed to wait for child process");
+//     //         println!("Child process exited with: {:?}", status);
+//     //     }
+//     //     Err(e) => {
+//     //         eprintln!("Error spawning process: {:?}", e);
+//     //     }
+//     // }
 // }
