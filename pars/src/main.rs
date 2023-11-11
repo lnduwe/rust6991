@@ -28,21 +28,32 @@ impl ParallelExecutor {
         }
     }
 
-    fn execute_commands(&mut self) {
+    fn execute_commands(&mut self, termination: String) {
         let mut outputs = Vec::<_>::new();
-        self.commands.iter().for_each(|cmd| {
+
+        for cmd in self.commands.iter() {
+            // self.commands.iter().for_each(|cmd| {
             let out = Command::new(cmd.command.as_str())
                 .args(cmd.args.clone())
                 .output();
             match out {
                 Ok(output) => {
-                    outputs.push(output);
+                    if output.status.code().unwrap() == 0 {
+                        outputs.push(output);
+                    } else {
+                        if termination == "Never" {
+                            break;
+                        }
+                    }
                 }
                 Err(_) => {
-                    //     println!("Error: {}", e);
+                    if termination == "Never" {
+                        break;
+                    }
                 }
             }
-        });
+            // });
+        }
 
         print_result(outputs);
     }
@@ -59,28 +70,51 @@ fn test() {
 }
 
 fn main() {
-    // let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = std::env::args().collect();
 
-    // let mut num_j = 0;
-    // let mut r_value = String::new();
+    let mut threads_limit = 1;
+    let mut r_value = String::new();
+    let mut mode = String::from("Server");
+    let mut remotes: Vec<String> = Vec::new();
+    let mut termination_control = String::from("Never");
 
     // for (index, arg) in args.iter().enumerate() {
-    //     if arg == "-j" {
+    //     if arg == "-J" || arg == "--parallel" {
     //         if let Some(j_value) = args.get(index + 1) {
     //             if let Ok(j) = j_value.parse::<u32>() {
-    //                 num_j = j;
+    //                 threads_limit = j;
     //             }
     //         }
-    //     } else if arg == "-r" {
-    //         if let Some(r_arg) = args.get(index + 1) {
-    //             r_value = r_arg.clone();
+    //     } else if arg == "-r" || arg == "--remote" {
+    //         match args.get(index + 1) {
+    //             Some(r_arg) => {
+    //                 remotes.push(r_arg.clone());
+    //             }
+    //             None => {
+    //                 println!("Error: Remote address is not provided");
+    //             }
     //         }
     //     } else if arg == "-e" || arg == "--halt" {
-    //         if let Some(e_arg) = args.get(index + 1) {
-    //             r_value = e_arg.clone();
+    //         match args.get(index + 1) {
+    //             Some(e_arg) => {
+    //                 termination_control = e_arg.clone();
+    //             }
+    //             None => {
+    //                 println!("Error: Remote address is not provided");
+    //             }
+    //         }
+    //     } else if arg == "-s" || arg == "--secondary" {
+    //         match args.get(index + 1) {
+    //             Some(s_arg) => {
+    //                 mode = s_arg.clone();
+    //             }
+    //             None => {
+    //                 println!("Error: Remote address is not provided");
+    //             }
     //         }
     //     }
     // }
+
     let thread_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(2)
         .build()
@@ -101,11 +135,12 @@ fn main() {
             cmds.push_back(para);
         }
 
+        let termination_control = termination_control.clone();
         thread_pool.install(|| {
             thread_pool.spawn(move || {
                 let mut exec = ParallelExecutor::new();
                 exec.commands = cmds;
-                exec.execute_commands();
+                exec.execute_commands(termination_control);
             });
         });
     }
