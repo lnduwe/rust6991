@@ -12,6 +12,7 @@ required-features = ["birdie"]
 
 [dependencies]
 pars_libs = "0.1.3"
+rayon = "1.8.0"
 
 [features]
 default = ["birdie"]
