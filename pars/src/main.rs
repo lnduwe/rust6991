@@ -28,11 +28,14 @@ impl ParallelExecutor {
         }
     }
 
-    fn execute_commands(&mut self, termination: i32) -> bool {
+    fn execute_commands(&mut self, termination: i32, command_loop: Arc<Mutex<bool>>) -> bool {
         let mut outputs = Vec::<_>::new();
 
         let mut stop = false;
         for cmd in self.commands.iter() {
+            if command_loop.lock().unwrap().clone() == false {
+                break;
+            }
             // self.commands.iter().for_each(|cmd| {
             let out = Command::new(cmd.command.as_str())
                 .args(cmd.args.clone())
@@ -43,14 +46,22 @@ impl ParallelExecutor {
                         outputs.push(output);
                     } else {
                         // if termination == 0  {
+                        // println!("kdmkk");
                         stop = true;
+                        if termination == 2 {
+                            command_loop.lock().unwrap().clone_from(&false);
+                        }
                         break;
                         // }
                     }
                 }
                 Err(_) => {
                     // if termination == 0 || termination == 1 {
+                    // println!("3323323");
                     stop = true;
+                    if termination == 2 {
+                        command_loop.lock().unwrap().clone_from(&false);
+                    }
                     break;
                     // }
                 }
@@ -75,7 +86,7 @@ fn test() {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    let mut threads_limit = 1;
+    let mut threads_limit = 2;
     let mut r_value = String::new();
     let mut mode = String::from("Server");
     let mut remotes: Vec<String> = Vec::new();
@@ -121,7 +132,7 @@ fn main() {
     // }
 
     let thread_pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(2)
+        .num_threads(threads_limit as usize)
         .build()
         .unwrap();
 
@@ -130,6 +141,7 @@ fn main() {
 
     // let mut loop_flag = true;
     let stdin_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
+    let command_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
     // let (sender, receiver) = std::sync::mpsc::channel();
     for line in lines {
         let commands: Vec<Vec<String>> = parse_line(&line.unwrap()).unwrap();
@@ -149,13 +161,14 @@ fn main() {
 
             thread_pool.install(|| {
                 let stdin_loop_clone = Arc::clone(&stdin_loop);
+                let command_loop_clone = Arc::clone(&command_loop);
 
                 thread_pool.spawn(move || {
                     let mut exec = ParallelExecutor::new();
                     exec.commands = cmds;
-                    let flag = exec.execute_commands(termination_control);
+                    let flag = exec.execute_commands(termination_control, command_loop_clone);
                     if flag && termination_control == 1 {
-                        println!("Terminating the execution");
+                        // println!("Terminating the execution");
                         *stdin_loop_clone.lock().unwrap() = false;
                         // sender.send(false).unwrap();
                         return;
