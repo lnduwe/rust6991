@@ -28,9 +28,10 @@ impl ParallelExecutor {
         }
     }
 
-    fn execute_commands(&mut self, termination: String) {
+    fn execute_commands(&mut self, termination: i32) -> bool {
         let mut outputs = Vec::<_>::new();
 
+        let mut stop = false;
         for cmd in self.commands.iter() {
             // self.commands.iter().for_each(|cmd| {
             let out = Command::new(cmd.command.as_str())
@@ -41,21 +42,23 @@ impl ParallelExecutor {
                     if output.status.code().unwrap() == 0 {
                         outputs.push(output);
                     } else {
-                        if termination == "Never" {
-                            break;
-                        }
+                        // if termination == 0  {
+                        stop = true;
+                        break;
+                        // }
                     }
                 }
                 Err(_) => {
-                    if termination == "Never" {
-                        break;
-                    }
+                    // if termination == 0 || termination == 1 {
+                    stop = true;
+                    break;
+                    // }
                 }
             }
             // });
         }
-
         print_result(outputs);
+        stop
     }
 }
 
@@ -76,7 +79,7 @@ fn main() {
     let mut r_value = String::new();
     let mut mode = String::from("Server");
     let mut remotes: Vec<String> = Vec::new();
-    let mut termination_control = String::from("Never");
+    let mut termination_control = 1;
 
     // for (index, arg) in args.iter().enumerate() {
     //     if arg == "-J" || arg == "--parallel" {
@@ -95,12 +98,14 @@ fn main() {
     //             }
     //         }
     //     } else if arg == "-e" || arg == "--halt" {
-    //         match args.get(index + 1) {
-    //             Some(e_arg) => {
-    //                 termination_control = e_arg.clone();
-    //             }
-    //             None => {
-    //                 println!("Error: Remote address is not provided");
+    //         if let Some(ags) = args.get(index + 1) {
+    //             match ags.as_str() {
+    //                 "never" => termination_control = 0,
+    //                 "lazy" => termination_control = 1,
+    //                 "eager" => termination_control = 2,
+    //                 _ => {
+    //                     println!("Error: Invalid argument for --halt")
+    //                 }
     //             }
     //         }
     //     } else if arg == "-s" || arg == "--secondary" {
@@ -122,26 +127,44 @@ fn main() {
 
     let stdin = std::io::stdin();
     let lines = stdin.lock().lines();
+
+    // let mut loop_flag = true;
+    let stdin_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
+    // let (sender, receiver) = std::sync::mpsc::channel();
     for line in lines {
         let commands: Vec<Vec<String>> = parse_line(&line.unwrap()).unwrap();
         let mut cmds: VecDeque<ParallelCommand> = VecDeque::new();
-        for command_args in commands {
-            let para = ParallelCommand {
-                command: command_args[0].clone(),
-                args: command_args[1..].to_vec(),
-                executed: false,
-                exit_status: None,
-            };
-            cmds.push_back(para);
-        }
+        if *stdin_loop.lock().unwrap() {
+            for command_args in commands {
+                let para = ParallelCommand {
+                    command: command_args[0].clone(),
+                    args: command_args[1..].to_vec(),
+                    executed: false,
+                    exit_status: None,
+                };
+                cmds.push_back(para);
+            }
+            // let sender = sender.clone();
+            // let stdin_loop: Arc<Mutex<bool>> = stdin_loop.clone();
 
-        let termination_control = termination_control.clone();
-        thread_pool.install(|| {
-            thread_pool.spawn(move || {
-                let mut exec = ParallelExecutor::new();
-                exec.commands = cmds;
-                exec.execute_commands(termination_control);
+            thread_pool.install(|| {
+                let stdin_loop_clone = Arc::clone(&stdin_loop);
+
+                thread_pool.spawn(move || {
+                    let mut exec = ParallelExecutor::new();
+                    exec.commands = cmds;
+                    let flag = exec.execute_commands(termination_control);
+                    if flag && termination_control == 1 {
+                        println!("Terminating the execution");
+                        *stdin_loop_clone.lock().unwrap() = false;
+                        // sender.send(false).unwrap();
+                        return;
+                    }
+                });
             });
-        });
+        }
+        // if !*stdin_loop.lock().unwrap() {
+        //     break;
+        // }
     }
 }
