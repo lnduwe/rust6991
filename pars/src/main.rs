@@ -1,10 +1,12 @@
-use pars_libs::{parse_line, Remote, RemoteCommand};
+use pars_libs::parse_line;
 use std::collections::VecDeque;
-use std::io::{self, stdout, BufRead, Write};
-use std::process::{Command, ExitStatus};
+use std::io::{stdout, BufRead, Write};
+use std::process::{Command};
 use std::sync::{Arc, Mutex};
 use std::thread::{current, sleep};
 use std::time::Duration;
+mod ssh;
+use ssh::{Remote, RemoteCommand};
 
 #[derive(Clone, Debug)]
 struct ParallelCommand {
@@ -89,47 +91,74 @@ fn main() {
     let mut threads_limit = 2;
     let mut r_value = String::new();
     let mut mode = String::from("Server");
-    let mut remotes: Vec<String> = Vec::new();
+    let mut remotes_str: Vec<String> = Vec::new();
     let mut termination_control = 1;
+    let mut remotes = Vec::<Remote>::new();
 
-    // for (index, arg) in args.iter().enumerate() {
-    //     if arg == "-J" || arg == "--parallel" {
-    //         if let Some(j_value) = args.get(index + 1) {
-    //             if let Ok(j) = j_value.parse::<u32>() {
-    //                 threads_limit = j;
-    //             }
-    //         }
-    //     } else if arg == "-r" || arg == "--remote" {
-    //         match args.get(index + 1) {
-    //             Some(r_arg) => {
-    //                 remotes.push(r_arg.clone());
-    //             }
-    //             None => {
-    //                 println!("Error: Remote address is not provided");
-    //             }
-    //         }
-    //     } else if arg == "-e" || arg == "--halt" {
-    //         if let Some(ags) = args.get(index + 1) {
-    //             match ags.as_str() {
-    //                 "never" => termination_control = 0,
-    //                 "lazy" => termination_control = 1,
-    //                 "eager" => termination_control = 2,
-    //                 _ => {
-    //                     println!("Error: Invalid argument for --halt")
-    //                 }
-    //             }
-    //         }
-    //     } else if arg == "-s" || arg == "--secondary" {
-    //         match args.get(index + 1) {
-    //             Some(s_arg) => {
-    //                 mode = s_arg.clone();
-    //             }
-    //             None => {
-    //                 println!("Error: Remote address is not provided");
-    //             }
-    //         }
-    //     }
-    // }
+    for (index, arg) in args.iter().enumerate() {
+        //     if arg == "-J" || arg == "--parallel" {
+        //         if let Some(j_value) = args.get(index + 1) {
+        //             if let Ok(j) = j_value.parse::<u32>() {
+        //                 threads_limit = j;
+        //             }
+        //         }
+        //     } else
+        if arg == "-r" || arg == "--remote" {
+            match args.get(index + 1) {
+                Some(r_arg) => {
+                    remotes_str.push(r_arg.clone());
+                }
+                None => {
+                    println!("Error: Remote address is not provided");
+                    //exit
+                    std::process::exit(1);
+                }
+            }
+        }
+        // else if arg == "-e" || arg == "--halt" {
+        //         if let Some(ags) = args.get(index + 1) {
+        //             match ags.as_str() {
+        //                 "never" => termination_control = 0,
+        //                 "lazy" => termination_control = 1,
+        //                 "eager" => termination_control = 2,
+        //                 _ => {
+        //                     println!("Error: Invalid argument for --halt")
+        //                 }
+        //             }
+        //         }
+        //     } else if arg == "-s" || arg == "--secondary" {
+        //         match args.get(index + 1) {
+        //             Some(s_arg) => {
+        //                 mode = s_arg.clone();
+        //             }
+        //             None => {
+        //                 println!("Error: Remote address is not provided");
+        //             }
+        //         }
+        //     }
+    }
+
+    remotes_str.iter().for_each(|str| {
+        let colon_idx = str.find(":");
+        let slash_idx = str.find("/");
+        if colon_idx.is_none() || slash_idx.is_none() {
+            println!("Error: Invalid remote address");
+            std::process::exit(1);
+        }
+        let rmt = Remote {
+            addr: str[..colon_idx.unwrap()].to_string(),
+            port: str[colon_idx.unwrap() + 1..slash_idx.unwrap()]
+                .parse::<u16>()
+                .unwrap(),
+        };
+        remotes.push(rmt);
+    });
+
+    let rmt = Command::new("uname").arg("-a").remote_output(&remotes[0]);
+    print_result(vec![rmt.unwrap()]);
+   
+
+    return;
 
     let thread_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads_limit as usize)
