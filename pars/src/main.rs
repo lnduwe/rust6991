@@ -1,7 +1,7 @@
 use pars_libs::parse_line;
 use std::collections::VecDeque;
-use std::io::{stdout, BufRead, Write};
-use std::process::{Command};
+use std::io::{stdout, BufRead, Read, Write};
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread::{current, sleep};
 use std::time::Duration;
@@ -33,6 +33,11 @@ impl ParallelExecutor {
     fn execute_commands(&mut self, termination: i32, command_loop: Arc<Mutex<bool>>) -> bool {
         let mut outputs = Vec::<_>::new();
 
+        let rmt = Remote {
+            addr: String::from("do"),
+            port: 22,
+        };
+
         let mut stop = false;
         for cmd in self.commands.iter() {
             if command_loop.lock().unwrap().clone() == false {
@@ -41,7 +46,7 @@ impl ParallelExecutor {
             // self.commands.iter().for_each(|cmd| {
             let out = Command::new(cmd.command.as_str())
                 .args(cmd.args.clone())
-                .output();
+                .remote_output(&rmt);
             match out {
                 Ok(output) => {
                     if output.status.code().unwrap() == 0 {
@@ -81,6 +86,20 @@ fn print_result(output: Vec<std::process::Output>) {
     }
 }
 
+fn print_str(output: &str) {
+    // for i in 0..output.len() {
+    stdout().lock().write_all(&output.as_bytes()).ok();
+    // }
+}
+
+// fn print_result<T> ( output: Vec<T>)
+// where T: std::process::Output,
+// {
+//     for i in 0..output.len() {
+//         stdout().lock().write_all(&output[i].stdout).ok();
+//     }
+// }
+
 fn test() {
     sleep(Duration::from_secs(10));
 }
@@ -90,7 +109,7 @@ fn main() {
 
     let mut threads_limit = 2;
     let mut r_value = String::new();
-    let mut mode = String::from("Server");
+    let mut mode = String::from("single");
     let mut remotes_str: Vec<String> = Vec::new();
     let mut termination_control = 1;
     let mut remotes = Vec::<Remote>::new();
@@ -107,6 +126,7 @@ fn main() {
             match args.get(index + 1) {
                 Some(r_arg) => {
                     remotes_str.push(r_arg.clone());
+                    mode = String::from("server");
                 }
                 None => {
                     println!("Error: Remote address is not provided");
@@ -129,6 +149,7 @@ fn main() {
         //     } else if arg == "-s" || arg == "--secondary" {
         //         match args.get(index + 1) {
         //             Some(s_arg) => {
+
         //                 mode = s_arg.clone();
         //             }
         //             None => {
@@ -151,14 +172,13 @@ fn main() {
                 .parse::<u16>()
                 .unwrap(),
         };
+        threads_limit = str[slash_idx.unwrap() + 1..]
+            .parse::<i32>()
+            .expect("Invalid port number");
         remotes.push(rmt);
     });
 
-    let rmt = Command::new("uname").arg("-a").remote_output(&remotes[0]);
-    print_result(vec![rmt.unwrap()]);
-   
-
-    return;
+  
 
     let thread_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads_limit as usize)
@@ -205,8 +225,5 @@ fn main() {
                 });
             });
         }
-        // if !*stdin_loop.lock().unwrap() {
-        //     break;
-        // }
     }
 }
