@@ -1,7 +1,7 @@
 use pars_libs::parse_line;
 use std::collections::VecDeque;
 use std::io::{stdout, BufRead, Read, Write};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread::{current, sleep};
 use std::time::Duration;
@@ -33,10 +33,10 @@ impl ParallelExecutor {
     fn execute_commands(&mut self, termination: i32, command_loop: Arc<Mutex<bool>>) -> bool {
         let mut outputs = Vec::<_>::new();
 
-        let rmt = Remote {
-            addr: String::from("do"),
-            port: 22,
-        };
+        // let rmt = Remote {
+        //     addr: String::from("do"),
+        //     port: 22,
+        // };
 
         let mut stop = false;
         for cmd in self.commands.iter() {
@@ -46,7 +46,7 @@ impl ParallelExecutor {
             // self.commands.iter().for_each(|cmd| {
             let out = Command::new(cmd.command.as_str())
                 .args(cmd.args.clone())
-                .remote_output(&rmt);
+                .output();
             match out {
                 Ok(output) => {
                     if output.status.code().unwrap() == 0 {
@@ -178,7 +178,56 @@ fn main() {
         remotes.push(rmt);
     });
 
-  
+    // let mut child = Command::new("ssh")
+    //     .arg("do")
+    //     .stdin(Stdio::piped())
+    //     .stdout(Stdio::piped())
+    //     .stderr(Stdio::piped())
+    //     .spawn()
+    //     .unwrap();
+
+    // if let Some(mut stdin) = child.stdin.take() {
+    //     // Example: Sending commands to the SSH session
+    //     stdin
+    //         .write_all(b"ls\n")
+    //         .expect("Failed to write to SSH session");
+    //     stdin
+    //         .write_all(b"echo 'Hello from Rust!'\n")
+    //         .expect("Failed to write to SSH session");
+    // }
+
+    // let output = child
+    //     .wait()
+    //     .expect("Failed to wait for SSH process to exit");
+
+    // let mut buffer = String::new();
+    // child
+    //     .stdout
+    //     .take()
+    //     .unwrap()
+    //     .read_to_string(&mut buffer)
+    //     .unwrap();
+    // println!("SSH command output: {}", buffer);
+
+    // if let Some(mut stdin) = child.stdin.take() {
+    //     // Example: Sending commands to the SSH session
+    //     stdin
+    //         .write_all(b"uname -a\n")
+    //         .expect("Failed to write to SSH session");
+    //     stdin
+    //         .write_all(b"echo 'Hello from Rust2222!'\n")
+    //         .expect("Failed to write to SSH session");
+    // }
+
+    // let output = child
+    //     .wait()
+    //     .expect("Failed to wait for SSH process to exit");
+
+    // let mut buffer = String::new();
+    // if let Some(c) = &mut child.stdout.take() {
+    //     c.read_to_string(&mut buffer).unwrap();
+    // }
+    // println!("SSH command output: {}", buffer);
 
     let thread_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads_limit as usize)
