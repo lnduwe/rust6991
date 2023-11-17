@@ -187,7 +187,7 @@ fn main() {
     println!("{}", remotes_str[0].clone());
 
     let mut s = Session {
-        sock: TcpStream::connect(remotes[0].clone()),
+        sock: Err(std::io::Error::new(std::io::ErrorKind::Other, "Uninitialized")),
         session: std::ptr::null_mut(),
     };
     ssh_module::verify_session(
@@ -202,7 +202,7 @@ fn main() {
 
         let res = ssh_module::send_command(s.session, cmd);
 
-        println!("{}", res);
+        print!("{}", res);
     }
 
     return;
