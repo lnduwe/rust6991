@@ -1,12 +1,16 @@
+use libssh2_sys::libssh2_session_init_ex;
 use pars_libs::parse_line;
 use std::collections::VecDeque;
 use std::io::{stdout, BufRead, Read, Write};
+use std::net::TcpStream;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread::{current, sleep};
 use std::time::Duration;
 mod ssh;
 use ssh::{Remote, RemoteCommand};
+
+use crate::ssh_module::Session;
 mod ssh_module;
 
 #[derive(Clone, Debug)]
@@ -176,11 +180,18 @@ fn main() {
         remotes.push(rmt);
     });
 
+    ssh_module::init_ssh();
+
     let stdin = std::io::stdin();
     let lines = stdin.lock().lines();
     println!("{}", remotes_str[0].clone());
-    ssh_module::init_ssh();
-    let session = ssh_module::get_ssh_session(
+
+    let mut s = Session {
+        sock: TcpStream::connect(remotes[0].clone()),
+        session: std::ptr::null_mut(),
+    };
+    ssh_module::verify_session(
+        &mut s,
         remotes[0].clone(),
         "azureuser".to_string(),
         "/Users/orca/.ssh/sd.pem".to_string(),
@@ -189,9 +200,9 @@ fn main() {
     for line in lines {
         let cmd = line.unwrap();
 
-        let res = ssh_module::send_command(session, cmd);
+        let res = ssh_module::send_command(s.session, cmd);
 
-        println!("res: {}", res);
+        println!("{}", res);
     }
 
     return;

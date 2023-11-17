@@ -1,13 +1,11 @@
-use std::{
-    ffi::CString,
-    net::TcpStream,
-    os::fd::{AsFd, AsRawFd},
-    ptr::null,
-    thread::sleep,
-    time::Duration,
-};
+use std::{ffi::CString, net::TcpStream, os::fd::AsRawFd};
 
 use libssh2_sys::*;
+
+pub struct Session {
+    pub sock: Result<TcpStream, std::io::Error>,
+    pub session: *mut libssh2_sys::LIBSSH2_SESSION,
+}
 
 pub fn init_ssh() {
     unsafe {
@@ -19,23 +17,24 @@ pub fn init_ssh() {
     }
 }
 
-pub fn get_ssh_session(addr: String, username: String, privateKey: String) -> *mut LIBSSH2_SESSION {
+pub fn verify_session(s: &mut Session, addr: String, username: String, privateKey: String) {
     unsafe {
-        let sock: Result<TcpStream, std::io::Error> = TcpStream::connect(addr);
-        if sock.is_err() {
+        s.sock = TcpStream::connect(addr);
+        if s.sock.is_err() {
             println!("1error.");
-            return std::ptr::null_mut();
+            return;
         }
 
-        let session = libssh2_session_init_ex(None, None, None, std::ptr::null_mut());
-        if session == std::ptr::null_mut() {
+        s.session = libssh2_session_init_ex(None, None, None, std::ptr::null_mut());
+        if s.session == std::ptr::null_mut() {
             print!("session error");
-            return std::ptr::null_mut();
+            return;
         }
 
         let mut rc = 0;
         loop {
-            if let res = libssh2_session_handshake(session, sock.as_ref().unwrap().as_raw_fd()) {
+            if let res = libssh2_session_handshake(s.session, s.sock.as_ref().unwrap().as_raw_fd())
+            {
                 if res != LIBSSH2_ERROR_EAGAIN {
                     rc = res;
                     break;
@@ -44,10 +43,10 @@ pub fn get_ssh_session(addr: String, username: String, privateKey: String) -> *m
         }
 
         if rc != 0 {
-            return std::ptr::null_mut();
+            return;
         }
 
-        let fingerprint = libssh2_hostkey_hash(session, LIBSSH2_HOSTKEY_HASH_SHA256);
+        let fingerprint = libssh2_hostkey_hash(s.session, LIBSSH2_HOSTKEY_HASH_SHA256);
         // println!("{:?}", fingerprint);
 
         let username = CString::new(username).expect("CString::new failed");
@@ -55,7 +54,7 @@ pub fn get_ssh_session(addr: String, username: String, privateKey: String) -> *m
         // let pass = CString::new("").expect("CString::new failed");
         loop {
             if let res = libssh2_userauth_publickey_fromfile_ex(
-                session,
+                s.session,
                 username.as_ptr(),
                 username.as_bytes().len() as u32,
                 std::ptr::null(),
@@ -70,13 +69,13 @@ pub fn get_ssh_session(addr: String, username: String, privateKey: String) -> *m
             }
         }
 
-        print_error(session);
+        print_error(s.session);
         if rc != 0 {
             println!("error auth {}", rc);
-            return std::ptr::null_mut();
+            return;
         }
 
-        session
+        // session
     }
 }
 
@@ -117,11 +116,8 @@ pub fn send_command(sess: *mut LIBSSH2_SESSION, cmd: String) -> String {
 
         let _ = libssh2_channel_close(channel);
         print_error(sess);
-        println!("{b}");
-        let res = String::from_utf8_lossy(&buf);
-        println!("{}", res);
-
-        res.to_string()
+        // println!("{b}");
+        String::from_utf8_lossy(&buf).to_string()
     }
 }
 
