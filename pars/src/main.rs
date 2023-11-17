@@ -7,6 +7,7 @@ use std::thread::{current, sleep};
 use std::time::Duration;
 mod ssh;
 use ssh::{Remote, RemoteCommand};
+mod ssh_module;
 
 #[derive(Clone, Debug)]
 struct ParallelCommand {
@@ -100,19 +101,15 @@ fn print_str(output: &str) {
 //     }
 // }
 
-fn test() {
-    sleep(Duration::from_secs(10));
-}
-
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    let mut threads_limit = 2;
+    let mut threads_limit = 3;
     let mut r_value = String::new();
     let mut mode = String::from("single");
     let mut remotes_str: Vec<String> = Vec::new();
-    let mut termination_control = 1;
-    let mut remotes = Vec::<Remote>::new();
+    let mut termination_control = 2;
+    let mut remotes = Vec::<String>::new();
 
     for (index, arg) in args.iter().enumerate() {
         //     if arg == "-J" || arg == "--parallel" {
@@ -160,74 +157,44 @@ fn main() {
     }
 
     remotes_str.iter().for_each(|str| {
-        let colon_idx = str.find(":");
+        // let colon_idx = str.find(":");
         let slash_idx = str.find("/");
-        if colon_idx.is_none() || slash_idx.is_none() {
+        if slash_idx.is_none() {
             println!("Error: Invalid remote address");
             std::process::exit(1);
         }
-        let rmt = Remote {
-            addr: str[..colon_idx.unwrap()].to_string(),
-            port: str[colon_idx.unwrap() + 1..slash_idx.unwrap()]
-                .parse::<u16>()
-                .unwrap(),
-        };
+        // let rmt = Remote {
+        //     addr: str[..colon_idx.unwrap()].to_string(),
+        //     port: str[colon_idx.unwrap() + 1..slash_idx.unwrap()]
+        //         .parse::<u16>()
+        //         .unwrap(),
+        // };
+        let rmt = str[..slash_idx.unwrap()].to_string();
         threads_limit = str[slash_idx.unwrap() + 1..]
             .parse::<i32>()
             .expect("Invalid port number");
         remotes.push(rmt);
     });
 
-    // let mut child = Command::new("ssh")
-    //     .arg("do")
-    //     .stdin(Stdio::piped())
-    //     .stdout(Stdio::piped())
-    //     .stderr(Stdio::piped())
-    //     .spawn()
-    //     .unwrap();
+    let stdin = std::io::stdin();
+    let lines = stdin.lock().lines();
+    println!("{}", remotes_str[0].clone());
+    ssh_module::init_ssh();
+    let session = ssh_module::get_ssh_session(
+        remotes[0].clone(),
+        "azureuser".to_string(),
+        "/Users/orca/.ssh/sd.pem".to_string(),
+    );
 
-    // if let Some(mut stdin) = child.stdin.take() {
-    //     // Example: Sending commands to the SSH session
-    //     stdin
-    //         .write_all(b"ls\n")
-    //         .expect("Failed to write to SSH session");
-    //     stdin
-    //         .write_all(b"echo 'Hello from Rust!'\n")
-    //         .expect("Failed to write to SSH session");
-    // }
+    for line in lines {
+        let cmd = line.unwrap();
 
-    // let output = child
-    //     .wait()
-    //     .expect("Failed to wait for SSH process to exit");
+        let res = ssh_module::send_command(session, cmd);
 
-    // let mut buffer = String::new();
-    // child
-    //     .stdout
-    //     .take()
-    //     .unwrap()
-    //     .read_to_string(&mut buffer)
-    //     .unwrap();
-    // println!("SSH command output: {}", buffer);
+        println!("res: {}", res);
+    }
 
-    // if let Some(mut stdin) = child.stdin.take() {
-    //     // Example: Sending commands to the SSH session
-    //     stdin
-    //         .write_all(b"uname -a\n")
-    //         .expect("Failed to write to SSH session");
-    //     stdin
-    //         .write_all(b"echo 'Hello from Rust2222!'\n")
-    //         .expect("Failed to write to SSH session");
-    // }
-
-    // let output = child
-    //     .wait()
-    //     .expect("Failed to wait for SSH process to exit");
-
-    // let mut buffer = String::new();
-    // if let Some(c) = &mut child.stdout.take() {
-    //     c.read_to_string(&mut buffer).unwrap();
-    // }
-    // println!("SSH command output: {}", buffer);
+    return;
 
     let thread_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads_limit as usize)
@@ -276,3 +243,53 @@ fn main() {
         }
     }
 }
+
+// use std::io::{self, BufRead, BufReader, Read, Stdin, Write};
+// use std::process::{Command, Stdio};
+// use std::thread::{self, sleep};
+
+// fn main() {
+//     // Create an SSH command
+//     let mut child = Command::new("ssh")
+//         // .arg("-i")
+//         // .arg("/import/cage/6/z5465340/.ssh/cs6991/cs6991-id")
+//         // .arg("-p")
+//         // .arg("3333")
+//         // .arg("localhost")
+//         .arg("do")
+//         // .arg("--")
+//         // .arg("./ps")
+//         .stdin(Stdio::piped())
+//         .stdout(Stdio::piped())
+//         .stderr(Stdio::piped())
+//         .spawn()
+//         .expect("Failed to start SSH command");
+
+//     // Get stdin and stdout
+//     let mut child_stdin = child.stdin.take().expect("error");
+//     let mut child_stdout = child.stdout.take().expect("error");
+//     let mut child_stderr = child.stderr.take().expect("error");
+
+//     let mut output_str: Vec<u8> = Vec::new();
+//     let mut eee = BufReader::new(&mut child_stderr);
+//         eee.read_until(b'\n', &mut output_str).unwrap();
+//         println!("{:?}",String::from_utf8( output_str));
+
+//     loop {
+//         let msg = std::io::stdin().lock();
+//         msg.lines().for_each(|line| {
+//             let mut line = line.unwrap();
+//             println!("line: {}", line );
+//             line.push('\n');
+//             child_stdin.write_all(line.as_bytes()).unwrap();
+//             child_stdin.flush().unwrap();
+//         });
+
+//         let mut output_str: Vec<u8> = Vec::new();
+//         let mut reader = BufReader::new(&mut child_stdout);
+//         reader.read_until(b'\n', &mut output_str).unwrap();
+//         println!("{:?}",output_str);
+//         // child_stdin.send(String::from_utf8(output_str).unwrap())
+//         // sender. send (String::from_utf8 (output_str) .unwrap()).unwrap();
+//     }
+// }
