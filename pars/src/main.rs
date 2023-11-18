@@ -3,6 +3,8 @@ use std::collections::VecDeque;
 use std::io::{stdout, BufRead, Write};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
+use std::time::Duration;
 mod ssh;
 use ssh::Remote;
 
@@ -123,9 +125,9 @@ fn start() {
                     mode = String::from("server");
                 }
                 None => {
-                    println!("Error: Remote address is not provided");
+                    // println!("Error: Remote address is not provided");
                     //exit
-                    std::process::exit(1);
+                    // std::process::exit(1);
                 }
             }
         } else if arg == "-e" || arg == "--halt" {
@@ -145,30 +147,33 @@ fn start() {
                     mode = s_arg.clone();
                 }
                 None => {
-                    println!("Error: Remote address is not provided");
+                    // println!("Error: Remote address is not provided");
                 }
             }
         }
     }
 
-    remotes_str.iter().for_each(|str| {
-        let colon_idx = str.find(":");
-        let slash_idx = str.find("/");
-        if colon_idx.is_none() || slash_idx.is_none() {
-            println!("Error: Invalid remote address");
-            std::process::exit(1);
-        }
-        let rmt = Remote {
-            addr: str[..colon_idx.unwrap()].to_string(),
-            port: str[colon_idx.unwrap() + 1..slash_idx.unwrap()]
-                .parse::<u16>()
-                .unwrap(),
-        };
-        threads_limit = str[slash_idx.unwrap() + 1..]
-            .parse::<u32>()
-            .expect("Invalid port number");
-        remotes.push(rmt);
-    });
+    // println!("");
+    // println!("e {}", termination_control);
+
+    // remotes_str.iter().for_each(|str| {
+    //     let colon_idx = str.find(":");
+    //     let slash_idx = str.find("/");
+    //     if colon_idx.is_none() || slash_idx.is_none() {
+    //         println!("Error: Invalid remote address");
+    //         std::process::exit(1);
+    //     }
+    //     let rmt = Remote {
+    //         addr: str[..colon_idx.unwrap()].to_string(),
+    //         port: str[colon_idx.unwrap() + 1..slash_idx.unwrap()]
+    //             .parse::<u16>()
+    //             .unwrap(),
+    //     };
+    //     threads_limit = str[slash_idx.unwrap() + 1..]
+    //         .parse::<u32>()
+    //         .expect("Invalid port number");
+    //     remotes.push(rmt);
+    // });
 
     let thread_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads_limit as usize)
@@ -183,6 +188,8 @@ fn start() {
     let command_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
     // let (sender, receiver) = std::sync::mpsc::channel();
     for line in lines {
+        // sleep(Duration::from_secs(1));
+        //   println!("{}", line.as_ref().unwrap());
         let commands: Vec<Vec<String>> = parse_line(&line.unwrap()).unwrap();
         let mut cmds: VecDeque<ParallelCommand> = VecDeque::new();
         if *stdin_loop.lock().unwrap() {
