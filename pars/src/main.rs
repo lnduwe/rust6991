@@ -14,30 +14,29 @@ struct ParallelCommand {
     command: String,
     args: Vec<String>,
 }
+#[macro_use]
+extern crate serde;
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct Message {
+    id: i32,
+    status: i32,
+    msg: String,
+}
 
 struct Pipes {
     child_in: Arc<Mutex<std::process::ChildStdin>>,
     child_out: Arc<Mutex<std::process::ChildStdout>>,
 }
-// impl Pipes {
-//     fn new() -> Self {
-//         Self {
-//             child_in: std::process::ChildStdin::from(0),
-//             child_out: std::process::ChildStdout::from(0),
-//         }
-//     }
-// }
+
 #[derive(Clone, Debug)]
 struct ParallelExecutor {
     commands: VecDeque<ParallelCommand>,
-    mode: String,
 }
 
 impl ParallelExecutor {
     fn new() -> Self {
         Self {
             commands: VecDeque::new(),
-            mode: String::from("Never"),
         }
     }
     fn execute_remote_commands(
@@ -46,8 +45,7 @@ impl ParallelExecutor {
         command_loop: Arc<Mutex<bool>>,
         stdin: &mut std::process::ChildStdin,
         stdout: &mut std::process::ChildStdout,
-    ) {
-        // let buf = "ls -l\n";
+    ) -> bool {
 
         let mut cmd_str = String::new();
         for cmd in self.commands.iter() {
@@ -60,22 +58,55 @@ impl ParallelExecutor {
 
             cmd_str.push_str(&(cmd.command.clone() + &args + "; "));
         }
-        // println!("{}", cmd_str);
+  
         cmd_str.push_str("\n");
         stdin.write_all((cmd_str).as_bytes()).unwrap();
 
-        stdin.flush().unwrap();
-
-        // let mut output: Vec<u8> = Vec::new();
-        let mut output = [0; 1024];
+  
+        let mut output = [0; 2048];
 
         let mut bufreader = io::BufReader::new(&mut *stdout);
 
-        bufreader.read(output.as_mut()).unwrap();
+        let size = bufreader.read(output.as_mut()).unwrap();
 
+        let res_str = String::from_utf8_lossy(&output[..size]).to_string();
+
+        let result: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(&res_str);
+        let mut stop = false;
+
+        // println!("{}", res_str);
+
+        match result {
+            Ok(msgs) => {
+                msgs.iter().for_each(|msg| {
+                    if msg.status == 0 {
+                        print_str(&msg.msg);
+                    } else {
+                        stop = true;
+                        // if termination == 2 {
+                        //     command_loop.lock().unwrap().clone_from(&false);
+                        // }
+                    }
+                });
+            }
+            Err(e) => {
+                println!("Error: {}", e);
+                stop = true;
+                if termination == 0 || termination == 1 {
+                    // print_str();
+                }
+                // else if termination == 2 {
+                //     command_loop.lock().unwrap().clone_from(&false);
+                // }
+            }
+        }
+
+        stop
         // println!("{}", String::from_utf8_lossy(&output));
-        print_str(&String::from_utf8_lossy(&output));
+        // print_str(&String::from_utf8_lossy(&output));
     }
+
+    //execute local commands
 
     fn execute_commands(&mut self, termination: i32, command_loop: Arc<Mutex<bool>>) -> bool {
         let mut outputs = Vec::<_>::new();
@@ -131,10 +162,6 @@ fn print_str(output: &str) {
     // for i in 0..output.len() {
     stdout().lock().write_all(&output.as_bytes()).ok();
     // }
-}
-
-fn test() {
-    sleep(Duration::from_secs(10));
 }
 
 fn start() {
@@ -232,7 +259,7 @@ fn start() {
         } else if arg == "-s" || arg == "--secondary" {
             match args.get(index + 1) {
                 Some(s_arg) => {
-                    mode = s_arg.clone();
+                    //  mode = s_arg.clone();
                 }
                 None => {
                     println!("Error: Remote address is not provided");
@@ -273,6 +300,7 @@ fn start() {
         }
 
         let args = format!("{} -e {} -J {}\n", start, term, threads_limit);
+
 
         remotes.iter().for_each(|rmt| {
             let mut cmd = Command::new(args.as_str())
