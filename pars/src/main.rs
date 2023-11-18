@@ -1,6 +1,7 @@
 use pars_libs::parse_line;
 use std::collections::VecDeque;
 use std::io::{self, stderr, stdout, BufRead, Read, Write};
+use std::io::{self, stderr, stdout, BufRead, Read, Write};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread::{current, sleep};
@@ -72,6 +73,10 @@ impl ParallelExecutor {
     fn execute_commands(&mut self, termination: i32, command_loop: Arc<Mutex<bool>>) -> bool {
         let mut outputs = Vec::<_>::new();
 
+        // let rmt = Remote {
+        //     addr: String::from("do"),
+        //     port: 22,
+        // };
         // let rmt = Remote {
         //     addr: String::from("do"),
         //     port: 22,
@@ -268,8 +273,8 @@ fn start() {
         .build()
         .unwrap();
 
-    let stdin = std::io::stdin();
-    let lines = stdin.lock().lines();
+    // let stdin = std::io::stdin();
+    // let lines = stdin.lock().lines();
 
     // let mut loop_flag = true;
     let stdin_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
