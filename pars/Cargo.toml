@@ -5,7 +5,7 @@ edition = "2021"
 
 [[bin]]
 name = "pars"
-path = "src/libssh.rs"
+path = "src/main.rs"
 required-features = ["birdie"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
