@@ -31,77 +31,83 @@ struct Pipes {
 #[derive(Clone, Debug)]
 struct ParallelExecutor {
     commands: VecDeque<ParallelCommand>,
+    commands_str: String,
 }
 
 impl ParallelExecutor {
     fn new() -> Self {
         Self {
             commands: VecDeque::new(),
+            commands_str: String::new(),
         }
     }
     fn execute_remote_commands(
         &mut self,
-        termination: i32,
-        command_loop: Arc<Mutex<bool>>,
-        stdin: &mut std::process::ChildStdin,
-        stdout: &mut std::process::ChildStdout,
-    ) -> bool {
+        // termination: i32,
+        // command_loop: Arc<Mutex<bool>>,
+        stdin: Arc<Mutex<std::process::ChildStdin>>,
+    ) {
+        // let mut cmd_str = String::new();
+        // for cmd in self.commands.iter() {
+        //     //append cmd to cmd_str
+        //     let space = String::from(" ");
+        //     let mut args: String = String::new();
+        //     cmd.args.iter().for_each(|arg| {
+        //         args.push_str(&(space.clone() + arg));
+        //     });
 
-        let mut cmd_str = String::new();
-        for cmd in self.commands.iter() {
-            //append cmd to cmd_str
-            let space = String::from(" ");
-            let mut args: String = String::new();
-            cmd.args.iter().for_each(|arg| {
-                args.push_str(&(space.clone() + arg));
-            });
+        //     cmd_str.push_str(&(cmd.command.clone() + &args + "; "));
+        // }
+        //     println!("cmd_str: {}", self.commands_str);
+        // sleep(Duration::from_secs(1));
+        self.commands_str.push_str("\n");
+        // println!("cmd_str: {}",self.commands_str);
+        stdin
+            .lock()
+            .unwrap()
+            .write_all((self.commands_str).as_bytes())
+            .unwrap();
+        stdin.lock().unwrap().flush().unwrap();
 
-            cmd_str.push_str(&(cmd.command.clone() + &args + "; "));
-        }
-  
-        cmd_str.push_str("\n");
-        stdin.write_all((cmd_str).as_bytes()).unwrap();
+        // let mut output = [0; 2048];
 
-  
-        let mut output = [0; 2048];
+        // let mut bufreader = io::BufReader::new(&mut *stdout);
 
-        let mut bufreader = io::BufReader::new(&mut *stdout);
+        // let size = bufreader.read(output.as_mut()).unwrap();
 
-        let size = bufreader.read(output.as_mut()).unwrap();
+        // let res_str = String::from_utf8_lossy(&output[..size]).to_string();
 
-        let res_str = String::from_utf8_lossy(&output[..size]).to_string();
+        // let result: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(&res_str);
+        // let mut stop = false;
 
-        let result: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(&res_str);
-        let mut stop = false;
+        // // println!("{}", res_str);
 
-        // println!("{}", res_str);
+        // match result {
+        //     Ok(msgs) => {
+        //         msgs.iter().for_each(|msg| {
+        //             if msg.status == 0 {
+        //                 print_str(&msg.msg);
+        //             } else {
+        //                 stop = true;
+        //                 // if termination == 2 {
+        //                 //     command_loop.lock().unwrap().clone_from(&false);
+        //                 // }
+        //             }
+        //         });
+        //     }
+        //     Err(e) => {
+        //         println!("Error: {}", e);
+        //         stop = true;
+        //         if termination == 0 || termination == 1 {
+        //             // print_str();
+        //         }
+        //         // else if termination == 2 {
+        //         //     command_loop.lock().unwrap().clone_from(&false);
+        //         // }
+        //     }
+        // }
 
-        match result {
-            Ok(msgs) => {
-                msgs.iter().for_each(|msg| {
-                    if msg.status == 0 {
-                        print_str(&msg.msg);
-                    } else {
-                        stop = true;
-                        // if termination == 2 {
-                        //     command_loop.lock().unwrap().clone_from(&false);
-                        // }
-                    }
-                });
-            }
-            Err(e) => {
-                println!("Error: {}", e);
-                stop = true;
-                if termination == 0 || termination == 1 {
-                    // print_str();
-                }
-                // else if termination == 2 {
-                //     command_loop.lock().unwrap().clone_from(&false);
-                // }
-            }
-        }
-
-        stop
+        // stop
         // println!("{}", String::from_utf8_lossy(&output));
         // print_str(&String::from_utf8_lossy(&output));
     }
@@ -300,7 +306,7 @@ fn start() {
         }
 
         let args = format!("{} -e {} -J {}\n", start, term, threads_limit);
-
+        println!("args: {}", args);
 
         remotes.iter().for_each(|rmt| {
             let mut cmd = Command::new(args.as_str())
@@ -317,6 +323,32 @@ fn start() {
         });
     }
 
+    let stdout_clone = Arc::clone(&pipes[0].child_out);
+    std::thread::spawn(move || loop {
+        let mut std_lock = stdout_clone.lock().unwrap();
+        let mut output = [0; 2048];
+
+        let mut bufreader = io::BufReader::new(&mut *std_lock);
+
+        let size = bufreader.read(output.as_mut()).unwrap();
+
+        let res_str = String::from_utf8_lossy(&output[..size]).to_string();
+
+        let result: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(&res_str);
+        let mut stop = false;
+
+        match result {
+            Ok(msgs) => {
+                msgs.iter().for_each(|msg| {
+                    if msg.status == 0 {
+                        print_str(&msg.msg);
+                    }
+                });
+            }
+            Err(e) => {}
+        }
+    });
+
     let thread_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads_limit as usize)
         .build()
@@ -329,49 +361,40 @@ fn start() {
     let stdin_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
     let command_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
     // let (sender, receiver) = std::sync::mpsc::channel();
+    let stdin_clone = Arc::clone(&pipes[0].child_in);
+
     for line in lines {
-        let commands: Vec<Vec<String>> = parse_line(&line.unwrap()).unwrap();
+        // let commands: Vec<Vec<String>> = parse_line(&line.unwrap()).unwrap();
+        let com_str = line.unwrap();
+
         let mut cmds: VecDeque<ParallelCommand> = VecDeque::new();
         if *stdin_loop.lock().unwrap() {
-            for command_args in commands {
-                let para = ParallelCommand {
-                    command: command_args[0].clone(),
-                    args: command_args[1..].to_vec(),
-                };
-                cmds.push_back(para);
-            }
-            // let sender = sender.clone();
-            // let stdin_loop: Arc<Mutex<bool>> = stdin_loop.clone();
-            // let stdin_clone = Arc::new(Mutex::new(pipes[0].child_in));
-            // let stdout_clone = Arc::new(Mutex::new(pipes[0].child_out));
-            let server_mode = mode.clone();
-            thread_pool.install(|| {
-                let stdin_loop_clone = Arc::clone(&stdin_loop);
-                let command_loop_clone = Arc::clone(&command_loop);
+            // for command_args in commands {
+            //     let para = ParallelCommand {
+            //         command: command_args[0].clone(),
+            //         args: command_args[1..].to_vec(),
+            //     };
+            //     cmds.push_back(para);
+            // }
 
-                if server_mode == "server" {
-                    let stdin_clone = Arc::clone(&pipes[0].child_in);
-                    let stdout_clone = Arc::clone(&pipes[0].child_out);
-                    thread_pool.spawn(move || {
-                        let mut exec = ParallelExecutor::new();
-                        exec.commands = cmds;
-                        let mut flag = false;
+            if mode == "server" {
+                let stdin_lock = Arc::clone(&stdin_clone);
+                // thread_pool.spawn(move || {
+                let mut exec = ParallelExecutor::new();
+                exec.commands_str = com_str;
+                // let mut flag = false;
 
-                        exec.execute_remote_commands(
-                            termination_control,
-                            command_loop_clone,
-                            &mut stdin_clone.lock().unwrap(),
-                            &mut stdout_clone.lock().unwrap(),
-                        );
+                exec.execute_remote_commands(
+                    // termination_control,
+                    // command_loop_clone,
+                    stdin_lock,
+                );
+                // });
+            } else {
+                thread_pool.install(|| {
+                    let stdin_loop_clone = Arc::clone(&stdin_loop);
+                    let command_loop_clone = Arc::clone(&command_loop);
 
-                        if flag && termination_control == 1 {
-                            // println!("Terminating the execution");
-                            *stdin_loop_clone.lock().unwrap() = false;
-                            // sender.send(false).unwrap();
-                            return;
-                        }
-                    });
-                } else {
                     thread_pool.spawn(move || {
                         let mut exec = ParallelExecutor::new();
                         exec.commands = cmds;
@@ -382,8 +405,8 @@ fn start() {
                             return;
                         }
                     });
-                }
-            });
+                });
+            }
         }
     }
 }
