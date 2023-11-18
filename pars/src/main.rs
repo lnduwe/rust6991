@@ -1,7 +1,7 @@
 use pars_libs::parse_line;
 use std::collections::VecDeque;
 use std::io::{self, stderr, stdout, BufRead, Read, Write};
-use std::io::{self, stderr, stdout, BufRead, Read, Write};
+// use std::io::{self, stderr, stdout, BufRead, Read, Write};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread::{current, sleep};
@@ -13,8 +13,6 @@ use ssh::{Remote, RemoteCommand};
 struct ParallelCommand {
     command: String,
     args: Vec<String>,
-    executed: bool,
-    exit_status: Option<i32>,
 }
 
 struct Pipes {
@@ -51,36 +49,36 @@ impl ParallelExecutor {
     ) {
         // let buf = "ls -l\n";
 
+        let mut cmd_str = String::new();
         for cmd in self.commands.iter() {
-            let cmd_str = cmd.command.clone() + " " + &cmd.args.join(" ") + "\n";
-            // println!("{}", cmd_str);
-            stdin.write_all((cmd_str).as_bytes()).unwrap();
+            //append cmd to cmd_str
+            let space = String::from(" ");
+            let mut args: String = String::new();
+            cmd.args.iter().for_each(|arg| {
+                args.push_str(&(space.clone() + arg));
+            });
 
-            stdin.flush().unwrap();
-
-            // let mut output: Vec<u8> = Vec::new();
-            let mut output = [0; 1024];
-
-            let mut bufreader = io::BufReader::new(&mut *stdout);
-
-            bufreader.read(output.as_mut()).unwrap();
-
-            // println!("{}", String::from_utf8_lossy(&output));
-            print_str(&String::from_utf8_lossy(&output));
+            cmd_str.push_str(&(cmd.command.clone() + &args + "; "));
         }
+        // println!("{}", cmd_str);
+        cmd_str.push_str("\n");
+        stdin.write_all((cmd_str).as_bytes()).unwrap();
+
+        stdin.flush().unwrap();
+
+        // let mut output: Vec<u8> = Vec::new();
+        let mut output = [0; 1024];
+
+        let mut bufreader = io::BufReader::new(&mut *stdout);
+
+        bufreader.read(output.as_mut()).unwrap();
+
+        // println!("{}", String::from_utf8_lossy(&output));
+        print_str(&String::from_utf8_lossy(&output));
     }
 
     fn execute_commands(&mut self, termination: i32, command_loop: Arc<Mutex<bool>>) -> bool {
         let mut outputs = Vec::<_>::new();
-
-        // let rmt = Remote {
-        //     addr: String::from("do"),
-        //     port: 22,
-        // };
-        // let rmt = Remote {
-        //     addr: String::from("do"),
-        //     port: 22,
-        // };
 
         let mut stop = false;
         for cmd in self.commands.iter() {
@@ -98,8 +96,6 @@ impl ParallelExecutor {
                     if output.status.code().unwrap() == 0 {
                         outputs.push(output);
                     } else {
-                        // if termination == 0  {
-                        // println!("kdmkk");
                         stop = true;
                         if termination == 2 {
                             command_loop.lock().unwrap().clone_from(&false);
@@ -147,29 +143,46 @@ fn start() {
     //     port: 22,
     // };
 
-    // let mut cmd = Command::new("/root/ps")
+    // let mut cmd = Command::new("sh")
     //     .remote_spawn(&rmt)
     //     .expect("Error spawn");
 
     // let mut child_in = cmd.stdin.take().unwrap();
     // let mut child_out = cmd.stdout.take().unwrap();
+    // let mut child_err = cmd.stderr.take().unwrap();
 
-    // let buf = "ls -l\n";
+    // // let buf = "/bin/false\n";
+    // let buf = "uname -a\n";
 
     // loop {
-    //     // let mut child_err = cmd.stderr.take().unwrap();
     //     child_in.write_all(buf.as_bytes()).unwrap();
     //     child_in.flush().unwrap();
 
-    //     // let mut output: Vec<u8> = Vec::new();
-    //     let mut output = [0; 1024];
-    //     let mut bufreader = io::BufReader::new(&mut child_out);
-    //     let mut buf = String::new();
+    //     let mut buf = [0; 1024];
+    //     // let mut output = Vec::new();
+    //     let mut output = String::new();
+    //     // let mut bufreader = io::BufReader::new(&mut child_out);
+    //     // child_out.
+
+    //     // child_out.read_to_string(&mut output);
     //     // bufreader.read_until(b'\n', &mut output).unwrap();
-    //     bufreader.read(output.as_mut()).unwrap();
-    //     // bufreader.read(&mut output).unwrap();
-    //     // bufreader.read_to_end(&mut output).unwrap();
-    //     println!("{}", String::from_utf8_lossy(&output));
+
+    //     // bufreader.read(output.as_mut()).unwrap();
+    //     // println!("f {}", String::from_utf8_lossy(&output));
+
+    //     match child_out.read(&mut buf) {
+    //       Ok(0) => break, // No more data
+    //       Ok(n) => output.push_str(std::str::from_utf8(&buf[..n]).unwrap()),
+    //       Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break, // No more data, non-blocking
+    //       Err(e) => panic!("Error reading from child process: {}", e),
+    //   }
+    //     print_str(&output);
+
+    //     // let mut output = [0; 1024];
+    //     // let mut bufreader = io::BufReader::new(&mut child_err);
+
+    //     // bufreader.read(output.as_mut()).unwrap();
+    //     // println!("{}", String::from_utf8_lossy(&output));
     //     sleep(Duration::from_secs(1));
     // }
 
@@ -187,14 +200,13 @@ fn start() {
     let mut pipes: Vec<Pipes> = Vec::new();
 
     for (index, arg) in args.iter().enumerate() {
-        //     if arg == "-J" || arg == "--parallel" {
-        //         if let Some(j_value) = args.get(index + 1) {
-        //             if let Ok(j) = j_value.parse::<u32>() {
-        //                 threads_limit = j;
-        //             }
-        //         }
-        //     } else
-        if arg == "-r" || arg == "--remote" {
+        if arg == "-J" || arg == "--parallel" {
+            if let Some(j_value) = args.get(index + 1) {
+                if let Ok(j) = j_value.parse::<u32>() {
+                    threads_limit = j;
+                }
+            }
+        } else if arg == "-r" || arg == "--remote" {
             match args.get(index + 1) {
                 Some(r_arg) => {
                     remotes_str.push(r_arg.clone());
@@ -206,29 +218,27 @@ fn start() {
                     std::process::exit(1);
                 }
             }
+        } else if arg == "-e" || arg == "--halt" {
+            if let Some(ags) = args.get(index + 1) {
+                match ags.as_str() {
+                    "never" => termination_control = 0,
+                    "lazy" => termination_control = 1,
+                    "eager" => termination_control = 2,
+                    _ => {
+                        println!("Error: Invalid argument for --halt")
+                    }
+                }
+            }
+        } else if arg == "-s" || arg == "--secondary" {
+            match args.get(index + 1) {
+                Some(s_arg) => {
+                    mode = s_arg.clone();
+                }
+                None => {
+                    println!("Error: Remote address is not provided");
+                }
+            }
         }
-        // else if arg == "-e" || arg == "--halt" {
-        //         if let Some(ags) = args.get(index + 1) {
-        //             match ags.as_str() {
-        //                 "never" => termination_control = 0,
-        //                 "lazy" => termination_control = 1,
-        //                 "eager" => termination_control = 2,
-        //                 _ => {
-        //                     println!("Error: Invalid argument for --halt")
-        //                 }
-        //             }
-        //         }
-        //     } else if arg == "-s" || arg == "--secondary" {
-        //         match args.get(index + 1) {
-        //             Some(s_arg) => {
-
-        //                 mode = s_arg.clone();
-        //             }
-        //             None => {
-        //                 println!("Error: Remote address is not provided");
-        //             }
-        //         }
-        //     }
     }
 
     if !remotes_str.is_empty() {
@@ -247,20 +257,31 @@ fn start() {
                     .unwrap(),
             };
             threads_limit = str[slash_idx.unwrap() + 1..]
-                .parse::<i32>()
+                .parse::<u32>()
                 .expect("Invalid port number");
             remotes.push(rmt);
         });
 
-        let start = "/root/ps";
+        let mut start = "/root/ps1";
+        let mut term = String::new();
+        if termination_control == 1 {
+            term.push_str("lazy");
+        } else if termination_control == 2 {
+            term.push_str("eager");
+        } else {
+            term.push_str("never");
+        }
+
+        let args = format!("{} -e {} -J {}\n", start, term, threads_limit);
+
         remotes.iter().for_each(|rmt| {
-            let mut cmd = Command::new(start)
+            let mut cmd = Command::new(args.as_str())
                 .remote_spawn(&rmt)
                 .expect("spawn failed");
             // let mut child_in = cmd.stdin.take().unwrap();
             // let mut child_out = cmd.stdout.take().unwrap();
 
-            let mut pipe = Pipes {
+            let pipe = Pipes {
                 child_in: Arc::new(Mutex::new(cmd.stdin.take().unwrap())),
                 child_out: Arc::new(Mutex::new(cmd.stdout.take().unwrap())),
             };
@@ -273,8 +294,8 @@ fn start() {
         .build()
         .unwrap();
 
-    // let stdin = std::io::stdin();
-    // let lines = stdin.lock().lines();
+    let stdin = std::io::stdin();
+    let lines = stdin.lock().lines();
 
     // let mut loop_flag = true;
     let stdin_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
@@ -288,8 +309,6 @@ fn start() {
                 let para = ParallelCommand {
                     command: command_args[0].clone(),
                     args: command_args[1..].to_vec(),
-                    executed: false,
-                    exit_status: None,
                 };
                 cmds.push_back(para);
             }
@@ -301,30 +320,41 @@ fn start() {
             thread_pool.install(|| {
                 let stdin_loop_clone = Arc::clone(&stdin_loop);
                 let command_loop_clone = Arc::clone(&command_loop);
-                let stdin_clone = Arc::clone(&pipes[0].child_in);
-                let stdout_clone = Arc::clone(&pipes[0].child_out);
 
-                thread_pool.spawn(move || {
-                    let mut exec = ParallelExecutor::new();
-                    exec.commands = cmds;
-                    let mut flag = false;
-                    if server_mode != "server" {
-                        flag = exec.execute_commands(termination_control, command_loop_clone);
-                    } else {
+                if server_mode == "server" {
+                    let stdin_clone = Arc::clone(&pipes[0].child_in);
+                    let stdout_clone = Arc::clone(&pipes[0].child_out);
+                    thread_pool.spawn(move || {
+                        let mut exec = ParallelExecutor::new();
+                        exec.commands = cmds;
+                        let mut flag = false;
+
                         exec.execute_remote_commands(
                             termination_control,
                             command_loop_clone,
                             &mut stdin_clone.lock().unwrap(),
                             &mut stdout_clone.lock().unwrap(),
                         );
-                    }
-                    if flag && termination_control == 1 {
-                        // println!("Terminating the execution");
-                        *stdin_loop_clone.lock().unwrap() = false;
-                        // sender.send(false).unwrap();
-                        return;
-                    }
-                });
+
+                        if flag && termination_control == 1 {
+                            // println!("Terminating the execution");
+                            *stdin_loop_clone.lock().unwrap() = false;
+                            // sender.send(false).unwrap();
+                            return;
+                        }
+                    });
+                } else {
+                    thread_pool.spawn(move || {
+                        let mut exec = ParallelExecutor::new();
+                        exec.commands = cmds;
+                        let flag = exec.execute_commands(termination_control, command_loop_clone);
+
+                        if flag && termination_control == 1 {
+                            *stdin_loop_clone.lock().unwrap() = false;
+                            return;
+                        }
+                    });
+                }
             });
         }
     }
