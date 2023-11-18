@@ -1,4 +1,4 @@
-use std::{ffi::CString, net::TcpStream, os::fd::AsRawFd};
+use std::{ffi::CString, net::TcpStream, os::fd::AsRawFd, sync::{Arc, Mutex}};
 
 use libssh2_sys::*;
 
@@ -79,7 +79,7 @@ pub fn verify_session(s: &mut Session, addr: String, username: String, privateKe
     }
 }
 
-pub fn send_command(sess: *mut LIBSSH2_SESSION, cmd: String) -> String {
+pub fn send_command(sess: *mut LIBSSH2_SESSION, cmd: String) -> (String, i32) {
     let session_n = CString::new("session").expect("CString::new failed");
     unsafe {
         //open channel
@@ -111,13 +111,45 @@ pub fn send_command(sess: *mut LIBSSH2_SESSION, cmd: String) -> String {
         const BUF_SIZE: usize = 1024;
         let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
         let buflen = BUF_SIZE;
-        // sleep(Duration::from_secs(3));
+
         let b = libssh2_channel_read_ex(channel, 0, buf.as_mut_ptr() as *mut i8, buflen);
 
-        let _ = libssh2_channel_close(channel);
+        let mut rc = 0;
+        if libssh2_channel_close(channel) == 0 {
+            rc = libssh2_channel_get_exit_status(channel);
+            println!("exit status: {}", rc);
+        }
+
+        libssh2_channel_free(channel);
+        // channel = std::ptr::null_mut();
+
         print_error(sess);
         // println!("{b}");
-        String::from_utf8_lossy(&buf).to_string()
+        (String::from_utf8_lossy(&buf).to_string(), rc)
+    }
+}
+
+fn close_connection(s: Session) {
+    unsafe {
+        if s.session != std::ptr::null_mut() {
+            libssh2_session_disconnect_ex(
+              s.session,
+                SSH_DISCONNECT_BY_APPLICATION,
+                CString::new("Shutdown").unwrap().as_ptr(),
+                CString::new("").unwrap().as_ptr(),
+            );
+            libssh2_session_free(s.session);
+        }
+
+        if s.sock.is_ok() {
+            s.sock.unwrap().shutdown(std::net::Shutdown::Both);
+        }
+    }
+}
+
+fn exit_libssh() {
+    unsafe {
+        libssh2_exit();
     }
 }
 
