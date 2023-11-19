@@ -114,24 +114,34 @@ fn print_str(output: &str) {
 ///
 /// # Arguments
 ///
-/// * `str` - The input byte slice containing the JSON string.
-/// * `size` - The size of the byte slice to consider for parsing.
+/// * `str` - The input JSON string as a byte slice.
+/// * `size` - The size of the byte slice to be parsed.
 ///
-fn parse_json(str: &[u8], size: usize) {
-    let str_slice = std::str::from_utf8(&str[..size]).unwrap();
+/// # Returns
+///
+/// Returns a `Result` containing the parsed vector of `Message` structs if successful,
+/// or a `serde_json::Error` if the parsing fails.
+fn parse_json(str: &[u8], size: usize) -> Result<Vec<Message>, serde_json::Error> {
+  let str_slice = std::str::from_utf8(&str[..size]).unwrap();
 
-    let result: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(str_slice);
+  let res: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(str_slice);
 
-    match result {
-        Ok(msgs) => {
-            msgs.iter().for_each(|msg| {
-                if msg.status == 0 {
-                    print_str(&msg.msg);
-                }
-            });
-        }
-        Err(_e) => {}
-    }
+  res
+}
+
+fn resolve_json_results(str: &[u8], size: usize) {
+  let result = parse_json(str, size);
+
+  match result {
+      Ok(msgs) => {
+          msgs.iter().for_each(|msg| {
+              if msg.status == 0 {
+                  print_str(&msg.msg);
+              }
+          });
+      }
+      Err(_e) => {}
+  }
 }
 
 fn start() {
@@ -245,7 +255,7 @@ fn start() {
 
             let size = bufreader.read(output.as_mut()).unwrap();
 
-            parse_json(&output, size);
+            resolve_json_results(&output, size);
         });
     }
 
@@ -314,4 +324,31 @@ fn start() {
 
 fn main() {
     start();
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_json_valid_input() {
+        let input =
+            r#"[{"id": 0, "status": 0, "msg": "Hello"}, {"id": 1, "status": 1, "msg": "World"}]"#;
+
+        let result = parse_json(input.as_bytes(), input.len());
+        let vecs = result.unwrap();
+
+        assert_eq!(vecs[0].msg, "Hello");
+        assert_eq!(vecs[1].msg, "World");
+    }
+
+    #[test]
+    fn test_parse_json_invalid_input() {
+        let input = r#"[{"status": 0, "msg": "Hello"}, {"status": 1, "msg": "World"}"#;
+
+        let result = parse_json(input.as_bytes(), input.len());
+
+        assert!(result.is_err());
+    }
 }

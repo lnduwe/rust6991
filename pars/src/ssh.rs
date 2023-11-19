@@ -1,8 +1,8 @@
-use shlex;
+// use shlex;
 use std::io::Result;
 use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Output};
-use home::home_dir;
+// use home;
 
 /// This describes a remote machine that we can connect to.
 #[derive(Debug, Clone, PartialEq, Eq)]
