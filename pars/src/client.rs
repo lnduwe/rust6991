@@ -3,10 +3,6 @@ use std::collections::VecDeque;
 use std::io::{stdout, BufRead, Write};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::thread::sleep;
-use std::time::Duration;
-mod ssh;
-use ssh::Remote;
 
 #[derive(Clone, Debug)]
 struct ParallelCommand {
@@ -18,7 +14,7 @@ struct ParallelCommand {
 extern crate serde;
 #[derive(Clone, Debug, Serialize)]
 struct Message {
-    id: i32,
+    id: usize,
     status: i32,
     msg: String,
 }
@@ -26,23 +22,21 @@ struct Message {
 #[derive(Clone, Debug)]
 struct ParallelExecutor {
     commands: VecDeque<ParallelCommand>,
-    mode: String,
 }
 
 impl ParallelExecutor {
     fn new() -> Self {
         Self {
             commands: VecDeque::new(),
-            mode: String::from("Never"),
         }
     }
 
     fn execute_commands(&mut self, termination: i32, command_loop: Arc<Mutex<bool>>) -> bool {
         let mut stop = false;
         let mut msgs: Vec<Message> = Vec::new();
-        let mut i = 0;
-        for cmd in self.commands.iter() {
-            if command_loop.lock().unwrap().clone() == false {
+        // let mut i = 0;
+        for (i, cmd) in self.commands.iter().enumerate() {
+            if !*command_loop.lock().unwrap() {
                 break;
             }
             let out = Command::new(cmd.command.as_str())
@@ -83,21 +77,15 @@ impl ParallelExecutor {
                     // }
                 }
             }
-            i += 1;
+            // i += 1;
         }
         print_str(&serde_json::to_string(&msgs).unwrap());
         stop
     }
 }
 
-// fn print_result(output: Vec<std::process::Output>) {
-//     for i in 0..output.len() {
-//         stdout().lock().write_all(&output[i].stdout).ok();
-//     }
-// }
-
 fn print_str(output: &str) {
-    stdout().lock().write_all(&output.as_bytes()).ok();
+    stdout().lock().write_all(output.as_bytes()).ok();
     stdout().lock().write_all(b"\n").ok();
 }
 
@@ -105,11 +93,11 @@ fn start() {
     let args: Vec<String> = std::env::args().collect();
 
     let mut threads_limit = 2;
-    let mut r_value = String::new();
-    let mut mode = String::from("single");
+    // let mut r_value = String::new();
+    // let mut mode = String::from("single");
     let mut remotes_str: Vec<String> = Vec::new();
     let mut termination_control = 0;
-    let mut remotes = Vec::<Remote>::new();
+    // let mut remotes = Vec::<Remote>::new();
 
     for (index, arg) in args.iter().enumerate() {
         if arg == "-J" || arg == "--parallel" {
@@ -122,7 +110,6 @@ fn start() {
             match args.get(index + 1) {
                 Some(r_arg) => {
                     remotes_str.push(r_arg.clone());
-                    mode = String::from("server");
                 }
                 None => {
                     // println!("Error: Remote address is not provided");
@@ -143,9 +130,7 @@ fn start() {
             }
         } else if arg == "-s" || arg == "--secondary" {
             match args.get(index + 1) {
-                Some(s_arg) => {
-                    mode = s_arg.clone();
-                }
+                Some(_s_arg) => {}
                 None => {
                     // println!("Error: Remote address is not provided");
                 }
@@ -207,15 +192,14 @@ fn start() {
                 thread_pool.spawn(move || {
                     let mut exec = ParallelExecutor::new();
                     exec.commands = cmds;
-                    let mut flag = false;
 
-                    flag = exec.execute_commands(termination_control, command_loop_clone);
+                    let flag = exec.execute_commands(termination_control, command_loop_clone);
 
                     if flag && termination_control == 1 {
                         // println!("Terminating the execution");
                         *stdin_loop_clone.lock().unwrap() = false;
                         // sender.send(false).unwrap();
-                        return;
+                        // return;
                     }
                 });
             });
