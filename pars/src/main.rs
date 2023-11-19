@@ -258,7 +258,7 @@ fn start() {
         }
 
         let args = format!("{} -e {} -J {}\n", start, term, threads_limit);
-        println!("args: {}", args);
+        // println!("args: {}", args);
 
         remotes.iter().for_each(|rmt| {
             let mut cmd = Command::new(args.as_str())
