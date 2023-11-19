@@ -1,7 +1,6 @@
 use pars_libs::parse_line;
 use std::collections::VecDeque;
-use std::io::{self, stderr, stdout, BufRead, Read, Write};
-// use std::io::{self, stderr, stdout, BufRead, Read, Write};
+use std::io::{self, stdout, BufRead, Read, Write};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread::{current, sleep};
@@ -47,19 +46,6 @@ impl ParallelExecutor {
         // command_loop: Arc<Mutex<bool>>,
         stdin: Arc<Mutex<std::process::ChildStdin>>,
     ) {
-        // let mut cmd_str = String::new();
-        // for cmd in self.commands.iter() {
-        //     //append cmd to cmd_str
-        //     let space = String::from(" ");
-        //     let mut args: String = String::new();
-        //     cmd.args.iter().for_each(|arg| {
-        //         args.push_str(&(space.clone() + arg));
-        //     });
-
-        //     cmd_str.push_str(&(cmd.command.clone() + &args + "; "));
-        // }
-        //     println!("cmd_str: {}", self.commands_str);
-        // sleep(Duration::from_secs(1));
         self.commands_str.push_str("\n");
         // println!("cmd_str: {}",self.commands_str);
         stdin
@@ -68,52 +54,9 @@ impl ParallelExecutor {
             .write_all((self.commands_str).as_bytes())
             .unwrap();
         stdin.lock().unwrap().flush().unwrap();
-
-        // let mut output = [0; 2048];
-
-        // let mut bufreader = io::BufReader::new(&mut *stdout);
-
-        // let size = bufreader.read(output.as_mut()).unwrap();
-
-        // let res_str = String::from_utf8_lossy(&output[..size]).to_string();
-
-        // let result: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(&res_str);
-        // let mut stop = false;
-
-        // // println!("{}", res_str);
-
-        // match result {
-        //     Ok(msgs) => {
-        //         msgs.iter().for_each(|msg| {
-        //             if msg.status == 0 {
-        //                 print_str(&msg.msg);
-        //             } else {
-        //                 stop = true;
-        //                 // if termination == 2 {
-        //                 //     command_loop.lock().unwrap().clone_from(&false);
-        //                 // }
-        //             }
-        //         });
-        //     }
-        //     Err(e) => {
-        //         println!("Error: {}", e);
-        //         stop = true;
-        //         if termination == 0 || termination == 1 {
-        //             // print_str();
-        //         }
-        //         // else if termination == 2 {
-        //         //     command_loop.lock().unwrap().clone_from(&false);
-        //         // }
-        //     }
-        // }
-
-        // stop
-        // println!("{}", String::from_utf8_lossy(&output));
-        // print_str(&String::from_utf8_lossy(&output));
     }
 
     //execute local commands
-
     fn execute_commands(&mut self, termination: i32, command_loop: Arc<Mutex<bool>>) -> bool {
         let mut outputs = Vec::<_>::new();
 
@@ -170,61 +113,34 @@ fn print_str(output: &str) {
     // }
 }
 
+/// Parses a JSON string into a vector of `Message` structs.
+///
+/// # Arguments
+///
+/// * `str` - The input byte slice containing the JSON string.
+/// * `size` - The size of the byte slice to consider for parsing.
+///
+fn parse_json(str: &[u8], size: usize) {
+    let str_slice = std::str::from_utf8(&str[..size]).unwrap();
+
+    let result: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(str_slice);
+
+    match result {
+        Ok(msgs) => {
+            msgs.iter().for_each(|msg| {
+                if msg.status == 0 {
+                    print_str(&msg.msg);
+                }
+            });
+        }
+        Err(_e) => {}
+    }
+}
+
 fn start() {
-    // let rmt = Remote {
-    //     addr: String::from("170.64.129.76"),
-    //     port: 22,
-    // };
-
-    // let mut cmd = Command::new("sh")
-    //     .remote_spawn(&rmt)
-    //     .expect("Error spawn");
-
-    // let mut child_in = cmd.stdin.take().unwrap();
-    // let mut child_out = cmd.stdout.take().unwrap();
-    // let mut child_err = cmd.stderr.take().unwrap();
-
-    // // let buf = "/bin/false\n";
-    // let buf = "uname -a\n";
-
-    // loop {
-    //     child_in.write_all(buf.as_bytes()).unwrap();
-    //     child_in.flush().unwrap();
-
-    //     let mut buf = [0; 1024];
-    //     // let mut output = Vec::new();
-    //     let mut output = String::new();
-    //     // let mut bufreader = io::BufReader::new(&mut child_out);
-    //     // child_out.
-
-    //     // child_out.read_to_string(&mut output);
-    //     // bufreader.read_until(b'\n', &mut output).unwrap();
-
-    //     // bufreader.read(output.as_mut()).unwrap();
-    //     // println!("f {}", String::from_utf8_lossy(&output));
-
-    //     match child_out.read(&mut buf) {
-    //       Ok(0) => break, // No more data
-    //       Ok(n) => output.push_str(std::str::from_utf8(&buf[..n]).unwrap()),
-    //       Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break, // No more data, non-blocking
-    //       Err(e) => panic!("Error reading from child process: {}", e),
-    //   }
-    //     print_str(&output);
-
-    //     // let mut output = [0; 1024];
-    //     // let mut bufreader = io::BufReader::new(&mut child_err);
-
-    //     // bufreader.read(output.as_mut()).unwrap();
-    //     // println!("{}", String::from_utf8_lossy(&output));
-    //     sleep(Duration::from_secs(1));
-    // }
-
-    // return;
-
     let args: Vec<String> = std::env::args().collect();
 
     let mut threads_limit = 2;
-    let mut r_value = String::new();
     let mut mode = String::from("single");
     let mut remotes_str: Vec<String> = Vec::new();
     let mut termination_control = 0;
@@ -322,32 +238,19 @@ fn start() {
             pipes.push(pipe);
         });
     }
+    if mode == "server" {
+        let stdout_clone = Arc::clone(&pipes[0].child_out);
+        std::thread::spawn(move || loop {
+            let mut std_lock = stdout_clone.lock().unwrap();
+            let mut output = [0; 2048];
 
-    let stdout_clone = Arc::clone(&pipes[0].child_out);
-    std::thread::spawn(move || loop {
-        let mut std_lock = stdout_clone.lock().unwrap();
-        let mut output = [0; 2048];
+            let mut bufreader = io::BufReader::new(&mut *std_lock);
 
-        let mut bufreader = io::BufReader::new(&mut *std_lock);
+            let size = bufreader.read(output.as_mut()).unwrap();
 
-        let size = bufreader.read(output.as_mut()).unwrap();
-
-        let res_str = String::from_utf8_lossy(&output[..size]).to_string();
-
-        let result: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(&res_str);
-        let mut stop = false;
-
-        match result {
-            Ok(msgs) => {
-                msgs.iter().for_each(|msg| {
-                    if msg.status == 0 {
-                        print_str(&msg.msg);
-                    }
-                });
-            }
-            Err(e) => {}
-        }
-    });
+            parse_json(&output, size);
+        });
+    }
 
     let thread_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads_limit as usize)
@@ -361,24 +264,14 @@ fn start() {
     let stdin_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
     let command_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
     // let (sender, receiver) = std::sync::mpsc::channel();
-    let stdin_clone = Arc::clone(&pipes[0].child_in);
 
     for line in lines {
         // let commands: Vec<Vec<String>> = parse_line(&line.unwrap()).unwrap();
         let com_str = line.unwrap();
 
-        let mut cmds: VecDeque<ParallelCommand> = VecDeque::new();
         if *stdin_loop.lock().unwrap() {
-            // for command_args in commands {
-            //     let para = ParallelCommand {
-            //         command: command_args[0].clone(),
-            //         args: command_args[1..].to_vec(),
-            //     };
-            //     cmds.push_back(para);
-            // }
-
             if mode == "server" {
-                let stdin_lock = Arc::clone(&stdin_clone);
+                let stdin_clone = Arc::clone(&pipes[0].child_in);
                 // thread_pool.spawn(move || {
                 let mut exec = ParallelExecutor::new();
                 exec.commands_str = com_str;
@@ -387,10 +280,21 @@ fn start() {
                 exec.execute_remote_commands(
                     // termination_control,
                     // command_loop_clone,
-                    stdin_lock,
+                    stdin_clone,
                 );
                 // });
             } else {
+                let mut cmds: VecDeque<ParallelCommand> = VecDeque::new();
+
+                let commands: Vec<Vec<String>> = parse_line(&com_str).unwrap();
+
+                for command_args in commands {
+                    let para = ParallelCommand {
+                        command: command_args[0].clone(),
+                        args: command_args[1..].to_vec(),
+                    };
+                    cmds.push_back(para);
+                }
                 thread_pool.install(|| {
                     let stdin_loop_clone = Arc::clone(&stdin_loop);
                     let command_loop_clone = Arc::clone(&command_loop);
