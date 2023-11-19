@@ -6,11 +6,11 @@ Please mark stages that are complete with an [X].
 Stages that are partially complete should be marked with a [?].
 Stages that are not complete should be left blank (like [ ]).
 
-> [ ] Single Command (local)
-> [ ] Multiple Commands (local)
-> [ ] Halting Modes (local)
-> [ ] Run commands remotely (one machine)
-> [ ] Run commands on one machine using only one connection per machine
+> [x] Single Command (local)
+> [x] Multiple Commands (local)
+> [x] Halting Modes (local)
+> [x] Run commands remotely (one machine)
+> [x] Run commands on one machine using only one connection per machine
 > [ ] Run commands over multiple machines
 
 ## Design Excellence / Extension
@@ -28,7 +28,8 @@ If you made any design decisions which you now regret making; but don't to go ba
 let us know here. You can make up your design marks by acknowledging up to 5 things you would do
 differently now.
 
-> - TODO
+> It wasn't difficult to merge the server and client code, but I didn't have much time left so I split them into two rust projects.
+"server" is the code for local machine, "client" is code for running on remote machines.
 
 ## Other Comments
 
