@@ -14,11 +14,13 @@ struct ParallelCommand {
 extern crate serde;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Message {
+    //json response from remote server
     id: i32,
     status: i32,
     msg: String,
 }
 
+/// A struct representing the pipes to a remote server. And counts the number of commands running on the remote server.
 struct Pipes {
     child_in: Arc<Mutex<std::process::ChildStdin>>,
     child_out: Arc<Mutex<std::process::ChildStdout>>,
@@ -34,10 +36,18 @@ struct ParallelExecutor {
 impl ParallelExecutor {
     fn new() -> Self {
         Self {
-            commands: VecDeque::new(),
-            commands_str: String::new(),
+            commands: VecDeque::new(),   //commands to run locally
+            commands_str: String::new(), //command string to run remotely
         }
     }
+
+    /// Run commands on remote servers.
+    /// Executes remote commands by writing them to the standard input of a child process.
+    ///
+    /// # Arguments
+    ///
+    /// * `stdin` - A shared reference to the standard input of the child process.
+    ///
     fn execute_remote_commands(&mut self, stdin: Arc<Mutex<std::process::ChildStdin>>) {
         self.commands_str.push('\n');
         // println!("cmd_str: {}",self.commands_str);
@@ -226,6 +236,7 @@ fn start() {
         }
     }
 
+    // parse the remote address and put them into a vector
     if !remotes_str.is_empty() {
         remotes_str.iter().for_each(|str| {
             // println!("str: {}", str);
@@ -260,6 +271,7 @@ fn start() {
         let args = format!("{} -e {} -J {}\n", start, term, threads_limit);
         // println!("args: {}", args);
 
+        //create pipes for each remote and store them in a vector
         remotes.iter().for_each(|rmt| {
             let mut cmd = Command::new(args.as_str())
                 .remote_spawn(rmt)
@@ -276,6 +288,7 @@ fn start() {
         });
     }
     if mode == "server" {
+        //create a thread for each remote to read the output from the remote server
         for p in &pipes {
             let stdout_clone = Arc::clone(&p.child_out);
             let count_clone = Arc::clone(&p.count);
@@ -305,6 +318,7 @@ fn start() {
         }
     }
 
+    //create a thread pool to limit the number of threads
     let thread_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads_limit as usize)
         .build()
@@ -314,6 +328,8 @@ fn start() {
     let lines = stdin.lock().lines();
 
     let stdin_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
+
+    //for eager mode
     let command_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
     // let (sender, receiver) = std::sync::mpsc::channel();
 
@@ -345,6 +361,7 @@ fn start() {
                 }
                 // });
             } else {
+                //local mode
                 let mut cmds: VecDeque<ParallelCommand> = VecDeque::new();
 
                 let commands: Vec<Vec<String>> = parse_line(&com_str).unwrap();
