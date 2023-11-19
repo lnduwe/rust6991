@@ -3,7 +3,7 @@ use std::io::{self, stdout, BufRead, Read, Write};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 mod ssh;
-use ssh::{Remote, RemoteCommand, parse_line};
+use ssh::{parse_line, Remote, RemoteCommand};
 
 #[derive(Clone, Debug)]
 struct ParallelCommand {
@@ -208,7 +208,7 @@ fn start() {
             remotes.push(rmt);
         });
 
-        let start = "/root/ps1";
+        let start = "pars";
         let mut term = String::new();
         if termination_control == 1 {
             term.push_str("lazy");

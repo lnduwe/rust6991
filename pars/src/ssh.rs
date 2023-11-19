@@ -1,7 +1,9 @@
+use shlex;
 use std::io::Result;
 use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Output};
-use shlex;
+use home::home_dir;
+
 /// This describes a remote machine that we can connect to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Remote {
@@ -32,18 +34,18 @@ fn reconstruct_ssh_command(remote: &Remote, command: &Command) -> Command {
     cmd.arg(remote.addr.clone());
 
     // Check whether ~/.ssh/cs6991/cs6991-id exists
-    // let path: PathBuf = [
-    //     home::home_dir().unwrap().to_str().unwrap(),
-    //     ".ssh",
-    //     "cs6991",
-    //     "cs6991-id",
-    // ]
-    // .iter()
-    // .collect();
-    // if path.is_file() {
+    let path: PathBuf = [
+        home::home_dir().unwrap().to_str().unwrap(),
+        ".ssh",
+        "cs6991",
+        "cs6991-id",
+    ]
+    .iter()
+    .collect();
+    if path.is_file() {
         cmd.arg("-i");
-        cmd.arg("~/.ssh/github1");
-    // }
+        cmd.arg(path);
+    }
 
     cmd.arg("--");
     cmd.arg(command.get_program());
