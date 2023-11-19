@@ -195,10 +195,8 @@ fn start() {
 
                     let flag = exec.execute_commands(termination_control, command_loop_clone);
 
-                    if flag && termination_control == 1 {
-                        // println!("Terminating the execution");
+                    if flag && (termination_control == 1 || termination_control == 2) {
                         *stdin_loop_clone.lock().unwrap() = false;
-                        // sender.send(false).unwrap();
                         // return;
                     }
                 });
