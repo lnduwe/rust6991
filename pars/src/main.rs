@@ -22,6 +22,7 @@ struct Message {
 struct Pipes {
     child_in: Arc<Mutex<std::process::ChildStdin>>,
     child_out: Arc<Mutex<std::process::ChildStdout>>,
+    count: Arc<Mutex<i32>>,
 }
 
 #[derive(Clone, Debug)]
@@ -122,26 +123,39 @@ fn print_str(output: &str) {
 /// Returns a `Result` containing the parsed vector of `Message` structs if successful,
 /// or a `serde_json::Error` if the parsing fails.
 fn parse_json(str: &[u8], size: usize) -> Result<Vec<Message>, serde_json::Error> {
-  let str_slice = std::str::from_utf8(&str[..size]).unwrap();
+    let str_slice = std::str::from_utf8(&str[..size]).unwrap();
 
-  let res: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(str_slice);
+    let res: Result<Vec<Message>, serde_json::Error> = serde_json::from_str(str_slice);
 
-  res
+    res
 }
 
 fn resolve_json_results(str: &[u8], size: usize) {
-  let result = parse_json(str, size);
+    let result = parse_json(str, size);
 
-  match result {
-      Ok(msgs) => {
-          msgs.iter().for_each(|msg| {
-              if msg.status == 0 {
-                  print_str(&msg.msg);
-              }
-          });
-      }
-      Err(_e) => {}
-  }
+    match result {
+        Ok(msgs) => {
+            msgs.iter().for_each(|msg| {
+                if msg.status == 0 {
+                    print_str(&msg.msg);
+                }
+            });
+        }
+        Err(_e) => {}
+    }
+}
+
+fn find_remote_with_lowest_load(pipes: &Vec<Pipes>) -> usize {
+    let mut min = 0;
+    let mut min_count = *pipes[0].count.lock().unwrap();
+    for i in 1..pipes.len() {
+        let count = *pipes[i].count.lock().unwrap();
+        if count < min_count {
+            min_count = count;
+            min = i;
+        }
+    }
+    min
 }
 
 fn start() {
@@ -199,7 +213,6 @@ fn start() {
 
     if !remotes_str.is_empty() {
         remotes_str.iter().for_each(|str| {
-            // println!("str: {}", str);
             let colon_idx = str.find(':');
             let slash_idx = str.find('/');
             if colon_idx.is_none() || slash_idx.is_none() {
@@ -241,22 +254,29 @@ fn start() {
             let pipe = Pipes {
                 child_in: Arc::new(Mutex::new(cmd.stdin.take().unwrap())),
                 child_out: Arc::new(Mutex::new(cmd.stdout.take().unwrap())),
+                count: Arc::new(Mutex::new(0)),
             };
             pipes.push(pipe);
         });
     }
     if mode == "server" {
-        let stdout_clone = Arc::clone(&pipes[0].child_out);
-        std::thread::spawn(move || loop {
-            let mut std_lock = stdout_clone.lock().unwrap();
-            let mut output = [0; 2048];
+        for i in 0..pipes.len() {
+            let stdout_clone = Arc::clone(&pipes[i].child_out);
+            let count_clone = Arc::clone(&pipes[i].count);
+            std::thread::spawn(move || loop {
+                let mut std_lock = stdout_clone.lock().unwrap();
+                // let mut count_lock = count_clone.lock().unwrap();
 
-            let mut bufreader = io::BufReader::new(&mut *std_lock);
+                let mut output = [0; 2048];
 
-            let size = bufreader.read(output.as_mut()).unwrap();
+                let mut bufreader = io::BufReader::new(&mut *std_lock);
 
-            resolve_json_results(&output, size);
-        });
+                let size = bufreader.read(output.as_mut()).unwrap();
+                *count_clone.lock().unwrap() -= 1;
+
+                resolve_json_results(&output, size);
+            });
+        }
     }
 
     let thread_pool = rayon::ThreadPoolBuilder::new()
@@ -267,28 +287,31 @@ fn start() {
     let stdin = std::io::stdin();
     let lines = stdin.lock().lines();
 
-    // let mut loop_flag = true;
     let stdin_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
     let command_loop = Arc::<Mutex<bool>>::new(Mutex::new(true));
     // let (sender, receiver) = std::sync::mpsc::channel();
 
     for line in lines {
-        // let commands: Vec<Vec<String>> = parse_line(&line.unwrap()).unwrap();
         let com_str = line.unwrap();
 
         if *stdin_loop.lock().unwrap() {
             if mode == "server" {
-                let stdin_clone = Arc::clone(&pipes[0].child_in);
-                // thread_pool.spawn(move || {
-                let mut exec = ParallelExecutor::new();
-                exec.commands_str = com_str;
-                // let mut flag = false;
-
-                exec.execute_remote_commands(
-                    // termination_control,
-                    // command_loop_clone,
-                    stdin_clone,
-                );
+                if pipes.len() == 1 {
+                    let stdin_clone = Arc::clone(&pipes[0].child_in);
+                    // thread_pool.spawn(move || {
+                    let mut exec = ParallelExecutor::new();
+                    exec.commands_str = com_str;
+                    exec.execute_remote_commands(stdin_clone);
+                    println!("count: {}", *pipes[0].count.lock().unwrap());
+                } else {
+                    let mut exec = ParallelExecutor::new();
+                    exec.commands_str = com_str;
+                    let min = find_remote_with_lowest_load(&pipes);
+                    let count_clone = Arc::clone(&pipes[min].count);
+                    let stdin_clone = Arc::clone(&pipes[min].child_in);
+                    *count_clone.lock().unwrap() += 1;
+                    exec.execute_remote_commands(stdin_clone);
+                }
                 // });
             } else {
                 let mut cmds: VecDeque<ParallelCommand> = VecDeque::new();
