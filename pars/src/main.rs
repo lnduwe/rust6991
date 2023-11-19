@@ -149,29 +149,26 @@ fn resolve_json_results(str: &[u8], size: usize) -> bool {
 
 /// Finds the remote with the lowest load.
 ///
-/// Given a vector of `Pipes`, this function iterates through the pipes and finds the remote with the lowest load.
-/// The load of each remote is determined by the value stored in the `count` field of the corresponding `Pipe` struct.
-/// The function returns the index of the remote with the lowest load, or -1 if no remote is found.
+/// Given a vector of `Pipes`, this function iterates through each pipe and finds the remote
+/// with the lowest load. The load is determined by the `count` field of each pipe. The function
+/// returns the index of the remote with the lowest load.
 ///
 /// # Arguments
 ///
-/// * `pipes` - A vector of `Pipes` representing the remote connections.
+/// * `pipes` - A vector of `Pipes` representing the remote pipes.
 ///
 /// # Returns
 ///
 /// The index of the remote with the lowest load, or -1 if no remote is found.
-fn find_remote_with_lowest_load(pipes: &Vec<Pipes>) -> i32 {
-    let mut min = 0;
-    let mut min_count = *pipes[0].count.lock().unwrap();
-    for i in 1..pipes.len() {
-        let count = *pipes[i].count.lock().unwrap();
+fn find_remote_with_lowest_load(pipes: &[Pipes]) -> i32 {
+    let mut min = -1;
+    let mut min_count = i32::MAX;
+    for (i, p) in pipes.iter().enumerate() {
+        let count = *p.count.lock().unwrap();
         if count < min_count && count >= 0 {
             min_count = count;
             min = i as i32;
         }
-    }
-    if min_count < 0 {
-        return -1;
     }
     min
 }
@@ -279,9 +276,9 @@ fn start() {
         });
     }
     if mode == "server" {
-        for i in 0..pipes.len() {
-            let stdout_clone = Arc::clone(&pipes[i].child_out);
-            let count_clone = Arc::clone(&pipes[i].count);
+        for p in &pipes {
+            let stdout_clone = Arc::clone(&p.child_out);
+            let count_clone = Arc::clone(&p.count);
             std::thread::spawn(move || loop {
                 let mut std_lock = stdout_clone.lock().unwrap();
                 // let mut count_lock = count_clone.lock().unwrap();
@@ -336,11 +333,11 @@ fn start() {
                     exec.commands_str = com_str;
                     let min = find_remote_with_lowest_load(&pipes);
                     //if no remote is available, skip the command
+
                     if min < 0 {
                         continue;
                     }
                     let min = min as usize;
-                    println!("min: {}", min);
                     let count_clone = Arc::clone(&pipes[min].count);
                     let stdin_clone = Arc::clone(&pipes[min].child_in);
                     *count_clone.lock().unwrap() += 1;
@@ -405,66 +402,5 @@ mod tests {
         let result = parse_json(input.as_bytes(), input.len());
 
         assert!(result.is_err());
-    }
-
-    #[test]
-
-    fn test_find_remote_with_lowest_load2() {
-        // Create some Pipes with different counts
-        let pipes = vec![
-            p {
-                count: Arc::new(Mutex::new(5)),
-            },
-            p {
-                count: Arc::new(Mutex::new(3)),
-            },
-            p {
-                count: Arc::new(Mutex::new(8)),
-            },
-            p {
-                count: Arc::new(Mutex::new(2)),
-            },
-        ];
-
-        // Call the function
-        let result = find_remote_with_lowest_load2(&pipes);
-
-        // Check the result
-        assert_eq!(result, 3);
-    }
-
-    #[test]
-
-    fn test_find_remote_with_lowest_load_empty_pipes() {
-        // Create an empty vector of Pipes
-        let pipes: Vec<p> = Vec::new();
-
-        // Call the function
-        let result = find_remote_with_lowest_load2(&pipes);
-
-        // Check the result (should be 0 since there are no pipes)
-        assert_eq!(result, 0);
-    }
-
-    #[test]
-    fn test_find_remote_with_lowest_load_equal_counts() {
-        // Create some Pipes with equal counts
-        let pipes = vec![
-            p {
-                count: Arc::new(Mutex::new(5)),
-            },
-            p {
-                count: Arc::new(Mutex::new(5)),
-            },
-            p {
-                count: Arc::new(Mutex::new(5)),
-            },
-        ];
-
-        // Call the function
-        let result = find_remote_with_lowest_load2(&pipes);
-
-        // Check the result (should be 0 since the first pipe has the lowest index)
-        assert_eq!(result, 0);
     }
 }
