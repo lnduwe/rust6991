@@ -1,12 +1,9 @@
-use pars_libs::parse_line;
 use std::collections::VecDeque;
 use std::io::{self, stdout, BufRead, Read, Write};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::thread::{current, sleep};
-use std::time::Duration;
 mod ssh;
-use ssh::{Remote, RemoteCommand};
+use ssh::{Remote, RemoteCommand, parse_line};
 
 #[derive(Clone, Debug)]
 struct ParallelCommand {
@@ -46,7 +43,7 @@ impl ParallelExecutor {
         // command_loop: Arc<Mutex<bool>>,
         stdin: Arc<Mutex<std::process::ChildStdin>>,
     ) {
-        self.commands_str.push_str("\n");
+        self.commands_str.push('\n');
         // println!("cmd_str: {}",self.commands_str);
         stdin
             .lock()
@@ -62,7 +59,7 @@ impl ParallelExecutor {
 
         let mut stop = false;
         for cmd in self.commands.iter() {
-            if command_loop.lock().unwrap().clone() == false {
+            if !*command_loop.lock().unwrap() {
                 break;
             }
             // self.commands.iter().for_each(|cmd| {
@@ -102,14 +99,14 @@ impl ParallelExecutor {
 }
 
 fn print_result(output: Vec<std::process::Output>) {
-    for i in 0..output.len() {
-        stdout().lock().write_all(&output[i].stdout).ok();
+    for item in &output {
+        print_str(&String::from_utf8_lossy(&item.stdout));
     }
 }
 
 fn print_str(output: &str) {
     // for i in 0..output.len() {
-    stdout().lock().write_all(&output.as_bytes()).ok();
+    stdout().lock().write_all(output.as_bytes()).ok();
     // }
 }
 
@@ -180,7 +177,7 @@ fn start() {
             }
         } else if arg == "-s" || arg == "--secondary" {
             match args.get(index + 1) {
-                Some(s_arg) => {
+                Some(_s_arg) => {
                     //  mode = s_arg.clone();
                 }
                 None => {
@@ -193,8 +190,8 @@ fn start() {
     if !remotes_str.is_empty() {
         remotes_str.iter().for_each(|str| {
             // println!("str: {}", str);
-            let colon_idx = str.find(":");
-            let slash_idx = str.find("/");
+            let colon_idx = str.find(':');
+            let slash_idx = str.find('/');
             if colon_idx.is_none() || slash_idx.is_none() {
                 println!("Error: Invalid remote address");
                 std::process::exit(1);
@@ -211,7 +208,7 @@ fn start() {
             remotes.push(rmt);
         });
 
-        let mut start = "/root/ps1";
+        let start = "/root/ps1";
         let mut term = String::new();
         if termination_control == 1 {
             term.push_str("lazy");
@@ -226,7 +223,7 @@ fn start() {
 
         remotes.iter().for_each(|rmt| {
             let mut cmd = Command::new(args.as_str())
-                .remote_spawn(&rmt)
+                .remote_spawn(rmt)
                 .expect("spawn failed");
             // let mut child_in = cmd.stdin.take().unwrap();
             // let mut child_out = cmd.stdout.take().unwrap();
@@ -306,7 +303,7 @@ fn start() {
 
                         if flag && termination_control == 1 {
                             *stdin_loop_clone.lock().unwrap() = false;
-                            return;
+                            // return;
                         }
                     });
                 });
